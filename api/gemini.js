@@ -23,7 +23,15 @@ export default async function handler(req, res) {
         return res.status(500).json({ error: "Gemini APIキーが設定されていません。" });
     }
 
-    const rawText = typeof req.body?.rawText === "string" ? req.body.rawText.trim() : "";
+    let body;
+    try {
+        body = await parseJsonBody(req);
+    } catch (error) {
+        console.error("Failed to parse request body", error);
+        return res.status(400).json({ error: "リクエストボディがJSONとして解釈できませんでした。" });
+    }
+
+    const rawText = typeof body?.rawText === "string" ? body.rawText.trim() : "";
     if (!rawText) {
         return res.status(400).json({ error: "rawText は必須です。" });
     }
@@ -157,4 +165,32 @@ async function safeReadJson(response) {
     } catch (error) {
         return null;
     }
+}
+
+async function parseJsonBody(req) {
+    if (req.body) {
+        return coerceJson(req.body);
+    }
+
+    let raw = "";
+    for await (const chunk of req) {
+        raw += typeof chunk === "string" ? chunk : chunk.toString("utf8");
+    }
+    if (!raw) {
+        return null;
+    }
+    return JSON.parse(raw);
+}
+
+function coerceJson(payload) {
+    if (typeof payload === "string") {
+        return JSON.parse(payload);
+    }
+    if (Buffer.isBuffer(payload)) {
+        return JSON.parse(payload.toString("utf8"));
+    }
+    if (typeof payload === "object") {
+        return payload;
+    }
+    return null;
 }
