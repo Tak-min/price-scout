@@ -1,125 +1,156 @@
-承知いたしました。
-構成を見直し、**Gemini API にレシート画像を直接送信し、商品情報を抽出するフルAI構成** として `copilot-instructions.md` を再定義します。
+このドキュメントについて
+GitHub Copilot が本リポジトリのコンテキストを理解しやすくするためのガイドです。
 
-この構成では、クライアントが画像ファイルをアップロードし、そのバイナリをサーバーレス関数経由で Gemini API に渡して、「商品名」「商品価格」「販売店」のみを抽出したJSONレスポンスを受け取り、アプリ側に反映します。
+このプロジェクトは、単一の index.html ファイルに全てのロジックを実装することを最優先とします。
 
------
+サーバーレス関数（api/ ディレクトリ）やビルドツール、複雑な構成は一切使用しません。
 
-# Copilot Instructions for PriceScout (v4 - Gemini Vision)
+前提条件
+回答は必ず日本語でしてください。
 
-## このドキュメントについて
+このプロジェクトは 単一の index.html ファイル で完結させます。style.css や app.js などの外部ファイルは作成しないでください。
 
-  * GitHub Copilot が本リポジトリのコンテキストを理解しやすくするためのガイドです。
-  * 新しい機能を実装する際は、ここで示す技術選定・設計方針・ファイル構成を前提にしてください。
-  * このプロジェクトは、Gemini API の画像理解能力を活用してレシートを直接解析する、シンプルなAI依存構成を採用します。
+CSSは <style> タグ内に記述します。
 
-## 前提条件
+JavaScriptは <script> タグ内に記述します。
 
-  * 回答は必ず日本語でしてください。
-  * コードの変更をする際、変更量が100行を超える可能性が高い場合は、事前に「この指示では変更量が100行を超える可能性がありますが、実行しますか？」とユーザーに確認をとるようにしてください。
-  * 何か大きい変更を加える場合、まず何をするのか計画を立てた上で、ユーザーに「このような計画で進めようと思います。」と提案してください。
+アプリ概要
+PriceScout (プライススカウト) は、レシート撮影で商品価格を記録し、過去の最安値を検索できるシンプルな価格管理アプリです。
 
-## アプリ概要
+主な機能
+APIキー入力: ユーザーが自身の Google Gemini API キーを入力し、sessionStorage に保存します。（セキュリティのため、コードにキーをハードコードしません）
 
-**PriceScout (プライススカウト)** は、レシート撮影で商品価格を記録し、過去の最安値をすぐに検索できるシンプルな価格管理アプリです。
+レシート撮影・AI OCR登録:
 
-### 主な機能
+ブラウザから Gemini API (gemini-1.5-flash など) に直接、レシート画像（Base64）を送信します。
 
-1.  **レシート撮影・AI解析登録**:
-  * **Gemini Vision (サーバーレス)**: アップロードされたレシート画像をそのまま Gemini API に渡し、「商品名」「商品ごとの価格」「販売店」を JSON で抽出します。
-  * **フォーム入力**: 返却されたJSONデータを `.raw-text` テキストボックスに整形して表示し、ユーザーが内容を確認・修正できるようにします。
-2.  **商品価格検索**: 登録した商品名を部分一致で検索し、結果を価格の安い順に表示します。
-3.  **データ管理**: 全てのデータはブラウザの `localStorage` に保存されます。JSON形式でのエクスポート・インポート機能も持ちます。
+Gemini が画像を解析し、店舗名、購入日、商品リスト（商品名と価格のペア） を含む厳格なJSON形式で返却します。
 
-## 技術スタック概要
+商品価格検索: 登録した商品名を部分一致で検索し、結果を単位価格の安い順に表示します。
 
-### クライアントサイド (ブラウザ)
+単位量換算: 「1gあたり」「1mlあたり」などの単位量あたりの価格を自動計算します。
 
-  * **言語**: HTML5, CSS3, Vanilla JavaScript (ES6+)
-  * **主要ライブラリ (CDN)**:
-    * `Day.js`: 日付フォーマット用（必要な場合のみ）
-  * **データ保存**: ブラウザの `localStorage` のみ。キー名は `priceScout_products` とします。
+データ管理: 全てのデータはブラウザの localStorage に保存されます。
 
-### サーバーサイド (APIキー隠蔽・AI処理)
+技術スタック概要
+ファイル構成: index.html のみ。
 
-  * **バックエンド (サーバーレス)**: Vercel Functions または Netlify Functions (Node.js環境)
-  * **外部API (サーバーサイドで呼び出し)**:
-  * **Google Gemini API**: レシート画像を解析し、商品ごとの情報を JSON として抽出
+言語: HTML5, CSS3, Vanilla JavaScript (ES6+)
 
-## プロジェクト構成と役割 (ディレクトリ構成)
+主要ライブラリ (CDN):
 
-Vercel Functions を利用する場合の構成例です。クライアントサイド3ファイル + APIエンドポイント1ファイルで構成されます。
+Day.js: 日付フォーマット用（必須ではないが、あると便利）
 
-```
-/
-├── api/
-│   └── gemini.js  # Gemini APIを呼び出すサーバーレス関数 (唯一のAPIエンドポイント)
-├── index.html     # すべてのHTML構造
-├── style.css      # すべてのCSSスタイル
-└── app.js         # すべてのクライアントサイド・ロジック (ファイルアップロード、APIリクエスト)
-```
+外部API:
 
-  * **`index.html`**: アプリのUI全体（モーダルウィンドウ含む）。
-  * **`style.css`**: アプリの全スタイル。
-  * **`app.js`**: 画像ファイルの検証、`api/gemini` への `FormData` 送信、返却JSONの表示・編集・保存、`localStorage` への保存、DOM操作など、クライアント側の全ロジック。
-  * **`api/gemini.js`**: クライアントから画像ファイルを受け取り、Gemini API を呼び出し、整形したJSONをクライアントに返すサーバーレス関数。**Gemini APIキーはこのファイルでのみ安全に使用されます。**
+Google Gemini API (gemini-1.5-flash): ブラウザの fetch API から直接呼び出します。
 
-## アーキテクチャ指針
+データ保存: localStorage (商品データ用), sessionStorage (APIキー用)
 
-### 1\. 設計原則: 画像アップロード + サーバーレスAI解析
+プロジェクト構成と役割 (単一ファイル内)
+index.html (単一ファイル)
+<head>: <style> タグ、Day.jsのCDNリンクを配置。
 
-  * クライアント (`app.js`) は、UI操作、画像アップロード、`localStorage` 管理、APIリクエストに専念します。
-  * レシート解析ロジックはすべて Gemini API が担い、クライアントでの文字解析処理は行いません。
-  * 取得結果の編集・確認はクライアントの `.raw-text` テキストボックスと登録済みリストで行います。
+<body>:
 
-### 2\. データモデル
+APIキー入力欄 (<input type="password" id="apiKeyInput">) と保存ボタン。
 
-```javascript
-// 商品オブジェクト (localStorage保存形式)
-const product = {
-  id: '1699459200000',      // タイムスタンプ
-  name: '明治おいしい牛乳',  // Geminiが抽出した商品名
-  price: 298,               // 商品ごとの価格 (税込)
-  store: 'イオン鶴見店'       // Geminiが抽出した販売店
-};
+メインのアプリUI（レシート撮影ボタン、検索欄、商品リスト表示エリア）。
 
-// 状態管理 (app.js内)
-const state = {
-  products: [],             // product オブジェクトの配列
-  searchQuery: ''
-};
-```
+編集用モーダルウィンドウ。
 
-### 3\. 画像解析フロー (Gemini Vision)
+<script>:
 
-#### クライアント (app.js) の役割
+すべてのJavaScriptロジックをここに記述します。
 
-1.  ユーザーがレシート画像を選択
-2.  ファイルバリデーション（サイズ、形式）を実行
-3.  ローディング表示などのUXケアを行う
-4.  `FormData` を使って画像ファイルを `api/gemini` に送信する
-5.  返却されたJSONを `.raw-text` テキストボックスへ整形して表示し、ユーザーが手動編集できるようにする
-6.  ユーザーが確定させた内容を `localStorage` に保存し、登録済みリストへ反映する
+アーキテクチャ指針
+1. 設計原則: 完全なクライアントサイド完結
+Tesseract.js、サーバーレス関数は一切使用しません。
 
-#### サーバーレス関数 (api/gemini.js) の役割
+状態管理は、localStorage とグローバルな state 変数（{ products: [], searchQuery: '' }）のみで行います。
 
-1.  クライアントから `multipart/form-data` で送信された画像ファイルを受け取る
-2.  Gemini のマルチモーダルモデル（例: Gemini 1.5 Flash / Gemini 1.5 Pro）に画像を直接渡す
-3.  以下形式の厳密なJSONでレスポンスするようプロンプトを設計する
-    ```json
+2. APIキーの管理 (最重要)
+ハードコード厳禁: JavaScriptコード内にAPIキーを絶対に記述しないでください。
+
+UIでの入力: 起動時にAPIキーが sessionStorage にない場合、APIキー入力欄を表示します。
+
+保存: ユーザーが入力したキーは sessionStorage.setItem('gemini_api_key', key) で保存します。これにより、タブを閉じるとキーは破棄され、安全性が高まります。
+
+取得: fetch を呼び出す際は sessionStorage.getItem('gemini_api_key') でキーを取得して使用します。
+
+3. OCR処理の指針 (Gemini Vision)
+JavaScript ( <script> タグ内) の役割
+画像選択: ユーザーが <input type="file"> で画像を選択します。
+
+画像→Base64変換: FileReader を使用し、選択された画像を Base64 文字列に変換します。
+
+APIキー取得: sessionStorage からAPIキーを取得します。キーがなければ処理を中断し、入力を促します。
+
+Gemini API リクエスト (fetch):
+
+エンドポイント: https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=...
+
+method: 'POST'
+
+body: 以下の構造を持つペイロードを JSON.stringify します。
+
+contents: ユーザープロンプトと画像データを含めます。
+
+JSON
+
+{
+  "contents": [
     {
-  "store": "イオン鶴見店",
-  "items": [
-    { "name": "明治おいしい牛乳", "price": 298 }
-  ]
+      "parts": [
+        { "text": "このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。" },
+        {
+          "inlineData": {
+            "mimeType": "image/jpeg", // または "image/png"
+            "data": "[ここにBase64エンコードされた画像文字列]"
+          }
+        }
+      ]
     }
-    ```
-4.  サーバーレス関数として、クライアントにJSONをそのまま返却する
+  ],
+  "generationConfig": {
+    "responseMimeType": "application/json",
+    "responseSchema": {
+      "type": "OBJECT",
+      "properties": {
+        "store": { "type": "STRING", "description": "店舗名" },
+        "date": { "type": "STRING", "description": "購入日 (YYYY-MM-DD形式)" },
+        "items": {
+          "type": "ARRAY",
+          "description": "購入した商品のリスト",
+          "items": {
+            "type": "OBJECT",
+            "properties": {
+              "name": { "type": "STRING", "description": "商品名" },
+              "price": { "type": "NUMBER", "description": "価格（税込）" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+レスポンス処理:
 
-## アンチパターン (禁止事項)
+返却されたJSON (response.json()) の candidates[0].content.parts[0].text をパースします。
 
-  * ❌ **APIキーのクライアントサイド保持**: `app.js` や `index.html` に Gemini のAPIキーを記述することは**絶対に禁止**します。
-  * ❌ **クライアントサイドでの複雑な解析**: `app.js` でレシートテキストを正規表現や独自ルールで解析することは**禁止**します。解析はすべて `api/gemini` で行います。
-  * ❌ **複雑なバックエンド/DB**: データベース（SQL/NoSQL）や、`/api/gemini` 以外の専用バックエンドサーバーの構築は禁止します。（APIキーを隠蔽するサーバーレス関数のみ許可）
-  * ❌ **フレームワーク**: React, Vue, Svelte, Angular など（Vanilla JS のみ）
-  * ❌ **UIライブラリ**: Bootstrap, Materialize CSS, Chakra UI など
+このJSONデータ（店舗名、日付、商品リスト）を編集フォームに自動入力します。
+
+注意: Geminiが商品リスト（items）を返すため、ユーザーは主に「内容量」「単位」の追加入力・修正を行います。
+
+アンチパターン (禁止事項)
+❌ APIキーのハードコード: JavaScriptコード内にAPIキーを文字列として記述すること。
+
+❌ 外部JS/CSSファイル: index.html 以外のアセット（app.js, style.css）を作成すること。
+
+❌ サーバーレス関数: api/ ディレクトリの作成や、バックエンドサーバーを前提としたコード。
+
+❌ Tesseract.js: CDNからの読み込みや使用。
+
+❌ Cloud Vision API: Google Cloud Vision API の使用。
+
+❌ 複雑なビルドツール: npm, webpack, Vite などの使用。
