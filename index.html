@@ -116,15 +116,10 @@
     </header>
 
     <main>
-        <!-- APIキー入力セクション -->
-        <section id="apiKeySection">
-            <h2>Google Gemini APIキーを入力してください</h2>
-            <input type="password" id="apiKeyInput" placeholder="APIキーを入力">
-            <button id="saveApiKeyButton">保存</button>
-        </section>
+        <!-- APIキー入力セクションは削除されました -->
 
-        <!-- メインアプリセクション (APIキー入力後に表示) -->
-        <section id="appSection" style="display: none;">
+        <!-- メインアプリセクション -->
+        <section id="appSection">
             <h2>商品管理</h2>
             
             <!-- レシート登録 -->
@@ -176,53 +171,33 @@
     <script>
         // JavaScriptはここに記述します
         document.addEventListener('DOMContentLoaded', () => {
-            const apiKeySection = document.getElementById('apiKeySection');
             const appSection = document.getElementById('appSection');
-            const apiKeyInput = document.getElementById('apiKeyInput');
-            const saveApiKeyButton = document.getElementById('saveApiKeyButton');
+            const GEMINI_API_KEY = "AIzaSyCsYqX5sCqc0xMwo4mqvgTlgljncqVp0y0";
+          
+            // 状態管理
+            const state = {
+                products: [],
+                searchQuery: '',
+            };
 
             // グローバルな state 変数を window オブジェクトにアタッチ
             window.state = state;
 
             // 1. 初期化処理
             function initialize() {
-                // sessionStorageからAPIキーを取得
-                const savedApiKey = sessionStorage.getItem('gemini_api_key');
-                if (savedApiKey) {
-                    state.apiKey = savedApiKey;
-                    showApp();
-                } else {
-                    showApiKeyInput();
+                if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+                    alert("JavaScriptコード内の 'GEMINI_API_KEY' にご自身のAPIキーを設定してください。");
                 }
-
+                showApp();
                 // localStorageから商品データを読み込み
                 loadProducts();
                 renderProducts();
             }
 
-            // APIキー入力表示
-            function showApiKeyInput() {
-                apiKeySection.style.display = 'block';
-                appSection.style.display = 'none';
-            }
-
             // アプリ本体表示
             function showApp() {
-                apiKeySection.style.display = 'none';
                 appSection.style.display = 'block';
             }
-
-            // 2. APIキーの保存
-            saveApiKeyButton.addEventListener('click', () => {
-                const key = apiKeyInput.value.trim();
-                if (key) {
-                    sessionStorage.setItem('gemini_api_key', key);
-                    state.apiKey = key;
-                    showApp();
-                } else {
-                    alert('APIキーを入力してください。');
-                }
-            });
 
             // 3. 商品データの読み込み
             function loadProducts() {
@@ -310,9 +285,8 @@
                     alert('画像ファイルを選択してください。');
                     return;
                 }
-                if (!state.apiKey) {
-                    alert('APIキーが設定されていません。');
-                    showApiKeyInput();
+                if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+                    alert("APIキーが設定されていません。コードを編集してください。");
                     return;
                 }
 
@@ -345,8 +319,7 @@
 
             // 7. Gemini API呼び出し
             async function callGeminiApi(base64Image, mimeType) {
-                const apiKey = state.apiKey;
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
 
                 const prompt = `このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。日付はYYYY-MM-DD形式にしてください。`;
 
