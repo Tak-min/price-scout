@@ -97,6 +97,10 @@
             const rawText = await runOcr(file);
             state.lastRawText = rawText;
             displayRawText(rawText);
+            if (!rawText) {
+                window.alert("OCRで文字を検出できませんでした。画像のピントや明るさを調整して再度お試しください。");
+                return;
+            }
             const geminiData = await requestGemini(rawText);
             openModalWithGeminiData(geminiData);
         } catch (error) {
