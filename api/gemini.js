@@ -2,13 +2,8 @@ const GEMINI_MODEL = "gemini-1.5-flash-latest";
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const FALLBACK_RESPONSE = {
-    name: "",
     store: "",
-    total: "",
-    date: "",
-    quantity: "",
-    unit: "",
-    memo: ""
+    items: []
 };
 
 module.exports = async function handler(req, res) {
@@ -22,21 +17,19 @@ module.exports = async function handler(req, res) {
         return res.status(500).json({ error: "Gemini APIキーが設定されていません。" });
     }
 
-    let body;
-    try {
-        body = await parseJsonBody(req);
-    } catch (error) {
-        console.error("Failed to parse request body", error);
-        return res.status(400).json({ error: "リクエストボディがJSONとして解釈できませんでした。" });
-    }
-
-    const rawText = typeof body?.rawText === "string" ? body.rawText.trim() : "";
-    if (!rawText) {
-        return res.status(400).json({ error: "rawText は必須です。" });
+    const contentType = req.headers["content-type"] || "";
+    if (!contentType.startsWith("multipart/form-data")) {
+        return res.status(400).json({ error: "multipart/form-data で画像を送信してください。" });
     }
 
     try {
-        const payload = buildGeminiPayload(rawText);
+        const bodyBuffer = await readRequestBuffer(req);
+        const filePart = extractFilePart(bodyBuffer, contentType);
+        if (!filePart) {
+            return res.status(400).json({ error: "receipt フィールドの画像が見つかりませんでした。" });
+        }
+
+        const payload = buildGeminiPayload(filePart);
         const response = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
             method: "POST",
             headers: {
@@ -48,70 +41,112 @@ module.exports = async function handler(req, res) {
         if (!response.ok) {
             const errorDetail = await safeReadJson(response);
             console.error("Gemini API error", response.status, errorDetail);
-            return res.status(response.status).json({ error: "Gemini API呼び出しでエラーが発生しました。" });
+            const message = response.status === 429
+                ? "Gemini APIの利用上限に達しました。時間をおいて再度お試しください。"
+                : "Gemini API呼び出しでエラーが発生しました。";
+            return res.status(response.status).json({ error: message });
         }
 
         const data = await response.json();
         const structured = extractStructuredJson(data) || { ...FALLBACK_RESPONSE };
-        return res.status(200).json(structured);
+
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        return res.status(200).send(JSON.stringify(structured, null, 2));
     } catch (error) {
         console.error("Gemini handler failure", error);
         return res.status(500).json({ error: "Gemini APIの呼び出しに失敗しました。" });
     }
 };
 
-function buildGeminiPayload(rawText) {
-    const prompt = buildPrompt(rawText);
+async function readRequestBuffer(req) {
+    const chunks = [];
+    for await (const chunk of req) {
+        chunks.push(typeof chunk === "string" ? Buffer.from(chunk, "utf8") : chunk);
+    }
+    return Buffer.concat(chunks);
+}
+
+function extractFilePart(buffer, contentType) {
+    const boundaryMatch = contentType.match(/boundary=(.+)$/);
+    const boundary = boundaryMatch?.[1];
+    if (!boundary) {
+        return null;
+    }
+    const boundaryText = `--${boundary}`;
+    const bodyString = buffer.toString("binary");
+    const parts = bodyString.split(boundaryText).filter(part => part.trim() && part.trim() !== "--");
+
+    for (const part of parts) {
+        if (!part.includes('name="receipt"')) {
+            continue;
+        }
+        // 手動で multipart の境界を解析し、ファイルバイナリとメタ情報を抽出する。
+        const headerEnd = part.indexOf("\r\n\r\n");
+        if (headerEnd === -1) {
+            continue;
+        }
+        const headerSection = part.slice(0, headerEnd);
+        const dataSection = part.slice(headerEnd + 4);
+        const dataEnd = dataSection.lastIndexOf("\r\n");
+        const fileBinary = dataSection.slice(0, dataEnd);
+        const fileBuffer = Buffer.from(fileBinary, "binary");
+
+        const typeMatch = headerSection.match(/Content-Type:\s*([^\r\n]+)/i);
+        const mimeType = typeMatch?.[1]?.trim() || "application/octet-stream";
+
+        return {
+            buffer: fileBuffer,
+            mimeType
+        };
+    }
+    return null;
+}
+
+function buildGeminiPayload(filePart) {
+    const instructions = [
+        "あなたはレシート解析に長けたアシスタントです。",
+        "画像を解析し、JSON形式で次の情報のみを抽出してください:",
+        "store: 店舗名 (不明なら空文字)",
+        "items: 商品の配列。各要素は { \"name\": 商品名, \"price\": 価格(数値) } としてください。",
+        "税抜/税込が判別できない場合は税込価格とみなし、推測は行わず不明なら除外してください。",
+        "出力は厳密に JSON のみで、余分な説明は含めないでください。"
+    ].join("\n");
+
     return {
         contents: [
             {
                 role: "user",
                 parts: [
                     {
-                        text: prompt
+                        text: instructions
+                    },
+                    {
+                        inline_data: {
+                            mime_type: filePart.mimeType,
+                            data: filePart.buffer.toString("base64")
+                        }
                     }
                 ]
             }
         ],
         generationConfig: {
-            temperature: 0.15,
+            temperature: 0.1,
             topP: 0.8,
-            topK: 32,
+            topK: 40,
             maxOutputTokens: 512,
             responseMimeType: "application/json"
         }
     };
 }
 
-function buildPrompt(rawText) {
-    return [
-        "あなたはスーパーマーケットのレシート解析に精通したアシスタントです。",
-        "以下のテキストは Tesseract.js が OCR したものであり、数字や文字の誤認識を含む可能性があります。",
-        "文脈を推測し、JSON形式で以下のキーを必ず含めてください:",
-        "name (代表的な商品名がわかる場合のみ)",
-        "store (店舗名)",
-        "total (税込合計金額。数値のみで円は含めない)",
-        "date (購入日。YYYY-MM-DD形式)",
-        "quantity (わかる場合の合計数量。数値のみ)",
-        "unit (数量の単位。わからなければ空文字)",
-        "memo (補足情報があれば記載。なければ空文字)",
-        "わからない情報は空文字にし、適当に作らないでください。",
-        "数値は半角で出力し、小数点が必要な場合のみ使用してください。",
-        "【OCRテキスト】\n" + rawText
-    ].join("\n");
-}
-
 function extractStructuredJson(geminiResponse) {
     try {
-        const text = geminiResponse?.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (typeof text !== "string") {
+        const raw = geminiResponse?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (typeof raw !== "string") {
             return null;
         }
-        const jsonString = extractJsonString(text);
-        if (!jsonString) {
-            return null;
-        }
-        const parsed = JSON.parse(jsonString);
+        const trimmed = raw.trim();
+        const parsed = JSON.parse(trimmed);
         return sanitizeResponse(parsed);
     } catch (error) {
         console.error("Failed to parse Gemini response", error);
@@ -119,43 +154,42 @@ function extractStructuredJson(geminiResponse) {
     }
 }
 
-function extractJsonString(text) {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) {
-        return null;
-    }
-    return text.slice(start, end + 1).replace(/```json|```/g, "").trim();
-}
-
 function sanitizeResponse(parsed) {
+    const store = typeof parsed?.store === "string" ? parsed.store.trim() : "";
+    const items = Array.isArray(parsed?.items) ? parsed.items : [];
+    const normalizedItems = items
+        .map(item => {
+            const name = typeof item?.name === "string" ? item.name.trim() : "";
+            const price = normalizeNumber(item?.price);
+            if (!name || price === null) {
+                return null;
+            }
+            return {
+                name,
+                price
+            };
+        })
+        .filter(Boolean);
+
     return {
-        name: typeof parsed.name === "string" ? parsed.name.trim() : "",
-        store: typeof parsed.store === "string" ? parsed.store.trim() : "",
-        total: normalizeNumber(parsed.total ?? parsed.price ?? ""),
-        date: typeof parsed.date === "string" ? parsed.date.trim() : "",
-        quantity: normalizeNumber(parsed.quantity ?? ""),
-        unit: typeof parsed.unit === "string" ? parsed.unit.trim() : "",
-        memo: typeof parsed.memo === "string" ? parsed.memo.trim() : ""
+        store,
+        items: normalizedItems
     };
 }
 
 function normalizeNumber(value) {
-    if (typeof value === "number") {
+    if (typeof value === "number" && Number.isFinite(value)) {
         return value;
     }
-    if (typeof value !== "string") {
-        return "";
+    if (typeof value === "string") {
+        const cleaned = value.replace(/[^0-9.]/g, "");
+        if (!cleaned) {
+            return null;
+        }
+        const parsed = Number.parseFloat(cleaned);
+        return Number.isNaN(parsed) ? null : parsed;
     }
-    const cleaned = value.replace(/[^0-9.]/g, "");
-    if (!cleaned) {
-        return "";
-    }
-    const parsed = Number.parseFloat(cleaned);
-    if (Number.isNaN(parsed)) {
-        return "";
-    }
-    return parsed;
+    return null;
 }
 
 async function safeReadJson(response) {
@@ -164,32 +198,4 @@ async function safeReadJson(response) {
     } catch (error) {
         return null;
     }
-}
-
-async function parseJsonBody(req) {
-    if (req.body) {
-        return coerceJson(req.body);
-    }
-
-    let raw = "";
-    for await (const chunk of req) {
-        raw += typeof chunk === "string" ? chunk : chunk.toString("utf8");
-    }
-    if (!raw) {
-        return null;
-    }
-    return JSON.parse(raw);
-}
-
-function coerceJson(payload) {
-    if (typeof payload === "string") {
-        return JSON.parse(payload);
-    }
-    if (Buffer.isBuffer(payload)) {
-        return JSON.parse(payload.toString("utf8"));
-    }
-    if (typeof payload === "object") {
-        return payload;
-    }
-    return null;
 }

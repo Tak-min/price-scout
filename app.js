@@ -7,32 +7,20 @@
     const state = {
         products: [],
         searchQuery: "",
-        editingId: null,
-        lastRawText: ""
+        lastJson: ""
     };
 
     const elements = {
         receiptInput: document.getElementById("receiptInput"),
         loadingIndicator: document.getElementById("loadingIndicator"),
         rawTextOutput: document.getElementById("rawTextOutput"),
+        registerButton: document.getElementById("registerButton"),
         searchInput: document.getElementById("searchInput"),
         productTableBody: document.getElementById("productTableBody"),
         productRowTemplate: document.getElementById("productRowTemplate"),
         exportButton: document.getElementById("exportButton"),
         importInput: document.getElementById("importInput"),
-        clearButton: document.getElementById("clearButton"),
-        modal: document.getElementById("productModal"),
-        modalForm: document.getElementById("productForm"),
-        modalTitle: document.getElementById("modalTitle"),
-        closeModalButton: document.getElementById("closeModalButton"),
-        modalCancelButton: document.getElementById("modalCancelButton"),
-        productName: document.getElementById("productName"),
-        productPrice: document.getElementById("productPrice"),
-        productQuantity: document.getElementById("productQuantity"),
-        productUnit: document.getElementById("productUnit"),
-        productStore: document.getElementById("productStore"),
-        productDate: document.getElementById("productDate"),
-        productMemo: document.getElementById("productMemo")
+        clearButton: document.getElementById("clearButton")
     };
 
     function init() {
@@ -43,18 +31,12 @@
 
     function attachEventListeners() {
         elements.receiptInput.addEventListener("change", handleImageSelection);
+        elements.rawTextOutput.addEventListener("input", handleRawTextChange);
+        elements.registerButton.addEventListener("click", handleRegisterJson);
         elements.searchInput.addEventListener("input", handleSearch);
         elements.exportButton.addEventListener("click", handleExport);
         elements.importInput.addEventListener("change", handleImport);
         elements.clearButton.addEventListener("click", handleClearAll);
-        elements.closeModalButton.addEventListener("click", closeModal);
-        elements.modalCancelButton.addEventListener("click", closeModal);
-        elements.modal.addEventListener("click", evt => {
-            if (evt.target === elements.modal) {
-                closeModal();
-            }
-        });
-        elements.modalForm.addEventListener("submit", handleModalSubmit);
     }
 
     function loadProductsFromStorage() {
@@ -66,7 +48,15 @@
             }
             const parsed = JSON.parse(raw);
             if (Array.isArray(parsed)) {
-                state.products = parsed;
+                state.products = parsed
+                    .map(item => ({
+                        id: item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        name: typeof item.name === "string" ? item.name.trim() : "",
+                        price: normalizePrice(item.price),
+                        store: typeof item.store === "string" ? item.store.trim() : "",
+                        raw: typeof item.raw === "string" ? item.raw : ""
+                    }))
+                    .filter(product => product.name && product.price !== null);
             }
         } catch (error) {
             console.error("Failed to load products", error);
@@ -94,15 +84,10 @@
         }
         showLoading(true);
         try {
-            const rawText = await runOcr(file);
-            state.lastRawText = rawText;
-            displayRawText(rawText);
-            if (!rawText) {
-                window.alert("OCRで文字を検出できませんでした。画像のピントや明るさを調整して再度お試しください。");
-                return;
-            }
-            const geminiData = await requestGemini(rawText);
-            openModalWithGeminiData(geminiData);
+            const jsonText = await requestGemini(file);
+            state.lastJson = jsonText;
+            displayRawText(jsonText);
+            updateRegisterButtonState();
         } catch (error) {
             console.error(error);
             window.alert(error.message || "解析に失敗しました。時間をおいて再度お試しください。");
@@ -113,36 +98,19 @@
 
     function showLoading(isLoading) {
         elements.loadingIndicator.classList.toggle("hidden", !isLoading);
+        elements.registerButton.disabled = isLoading || !elements.rawTextOutput.value.trim();
     }
 
     function displayRawText(text) {
         elements.rawTextOutput.value = text || "";
     }
 
-    async function runOcr(file) {
-        if (!window.Tesseract || typeof window.Tesseract.createWorker !== "function") {
-            throw new Error("Tesseract.js が読み込まれていません。");
-        }
-        const worker = await window.Tesseract.createWorker("jpn");
-        try {
-            await worker.setParameters({
-                // レシートは縦長の単一ブロック構造が多いため、このモードで安定しやすい。
-                tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK
-            });
-            const { data } = await worker.recognize(file);
-            return (data?.text || "").trim();
-        } finally {
-            await worker.terminate();
-        }
-    }
-
-    async function requestGemini(rawText) {
+    async function requestGemini(file) {
+        const formData = new FormData();
+        formData.append("receipt", file);
         const response = await fetch("/api/gemini", {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ rawText })
+            body: formData
         });
         if (!response.ok) {
             const payload = await safeReadJson(response);
@@ -152,8 +120,8 @@
             const message = payload?.error || `Gemini API 呼び出しでエラーが発生しました (${response.status})`;
             throw new Error(message);
         }
-        const data = await response.json();
-        return data;
+        const text = await response.text();
+        return text;
     }
 
     async function safeReadJson(response) {
@@ -164,145 +132,101 @@
         }
     }
 
-    function openModalWithGeminiData(geminiData) {
-        const initialValues = normalizeGeminiData(geminiData);
-        state.editingId = null;
-        fillForm(initialValues);
-        elements.modalTitle.textContent = "レシート内容の確認";
-        elements.modal.classList.remove("hidden");
-        window.requestAnimationFrame(() => {
-            elements.productName.focus();
-        });
+    function handleRawTextChange() {
+        state.lastJson = elements.rawTextOutput.value;
+        updateRegisterButtonState();
     }
 
-    function normalizeGeminiData(data) {
-        if (!data || typeof data !== "object") {
-            return buildEmptyProduct();
-        }
-        return {
-            id: null,
-            name: data.name || "",
-            price: data.total ?? data.price ?? "",
-            quantity: data.quantity ?? "",
-            unit: data.unit || "",
-            store: data.store || data.vendor || "",
-            date: sanitizeDate(data.date || data.purchaseDate || ""),
-            memo: data.memo || ""
-        };
-    }
-
-    function sanitizeDate(input) {
-        if (typeof input !== "string") {
-            return "";
-        }
-        const candidate = input.trim();
-        if (!candidate) {
-            return "";
-        }
-        const normalized = dayjs(candidate).isValid() ? dayjs(candidate).format("YYYY-MM-DD") : "";
-        return normalized;
-    }
-
-    function buildEmptyProduct() {
-        return {
-            id: null,
-            name: "",
-            price: "",
-            quantity: "",
-            unit: "",
-            store: "",
-            date: dayjs().format("YYYY-MM-DD"),
-            memo: ""
-        };
-    }
-
-    function fillForm(product) {
-        elements.productName.value = product.name ?? "";
-        elements.productPrice.value = product.price ?? "";
-        elements.productQuantity.value = product.quantity ?? "";
-        elements.productUnit.value = product.unit ?? "";
-        elements.productStore.value = product.store ?? "";
-        elements.productDate.value = product.date ?? "";
-        elements.productMemo.value = product.memo ?? "";
-    }
-
-    function closeModal() {
-        elements.modal.classList.add("hidden");
-        elements.modalForm.reset();
-        state.editingId = null;
-    }
-
-    function handleModalSubmit(event) {
-        event.preventDefault();
-        const collected = collectFormValues();
-        if (!collected.name.trim()) {
-            window.alert("商品名を入力してください。");
+    function updateRegisterButtonState() {
+        const text = elements.rawTextOutput.value.trim();
+        if (!text) {
+            elements.registerButton.disabled = true;
             return;
         }
-        if (Number.isNaN(collected.price) || collected.price <= 0) {
-            window.alert("価格は1以上の数値にしてください。");
-            return;
-        }
-        if (Number.isNaN(collected.quantity) || collected.quantity <= 0) {
-            window.alert("内容量は1以上の数値にしてください。");
-            return;
-        }
-        if (!collected.unit.trim()) {
-            window.alert("単位を入力してください。");
-            return;
-        }
-        if (!collected.store.trim()) {
-            window.alert("店舗名を入力してください。");
-            return;
-        }
-        if (!collected.date) {
-            window.alert("購入日を入力してください。");
-            return;
-        }
-        if (state.editingId) {
-            updateProduct(collected);
-        } else {
-            addProduct(collected);
-        }
-        closeModal();
-        renderProducts();
-        persistProducts();
+        elements.registerButton.disabled = !isValidJsonStructure(text);
     }
 
-    function collectFormValues() {
-        const price = Number.parseFloat(elements.productPrice.value);
-        const quantity = Number.parseFloat(elements.productQuantity.value);
-        return {
-            id: state.editingId || Date.now().toString(),
-            name: elements.productName.value.trim(),
-            price,
-            quantity,
-            unit: elements.productUnit.value.trim(),
-            store: elements.productStore.value.trim(),
-            date: elements.productDate.value,
-            memo: elements.productMemo.value.trim(),
-            unitPrice: calculateUnitPrice(price, quantity),
-            rawText: state.lastRawText
-        };
-    }
-
-    function calculateUnitPrice(price, quantity) {
-        if (!quantity || Number.isNaN(quantity) || Number.isNaN(price) || price < 0) {
-            return 0;
+    function isValidJsonStructure(text) {
+        try {
+            const parsed = JSON.parse(text);
+            if (!parsed || typeof parsed !== "object") {
+                return false;
+            }
+            if (!Array.isArray(parsed.items)) {
+                return false;
+            }
+            return parsed.items.every(item => typeof item.name === "string" && typeof item.price !== "undefined");
+        } catch (error) {
+            return false;
         }
-        return Number.parseFloat((price / quantity).toFixed(4));
     }
 
-    function addProduct(product) {
-        state.products.push(product);
-    }
-
-    function updateProduct(product) {
-        const index = state.products.findIndex(item => item.id === state.editingId);
-        if (index === -1) {
+    function handleRegisterJson() {
+        const text = elements.rawTextOutput.value.trim();
+        if (!isValidJsonStructure(text)) {
+            window.alert("JSON形式が正しくありません。store と items 配列を含めてください。");
             return;
         }
-        state.products[index] = { ...product };
+        try {
+            const parsed = JSON.parse(text);
+            const normalized = normalizeReceiptJson(parsed);
+            if (normalized.items.length === 0) {
+                window.alert("登録できる商品がありません。");
+                return;
+            }
+            normalized.items.forEach(product => {
+                state.products.push(product);
+            });
+            persistProducts();
+            renderProducts();
+            window.alert(`${normalized.items.length}件のデータを登録しました。`);
+            elements.rawTextOutput.value = "";
+            state.lastJson = "";
+            updateRegisterButtonState();
+        } catch (error) {
+            console.error(error);
+            window.alert("JSONの解析に失敗しました。");
+        }
+    }
+
+    function normalizeReceiptJson(parsed) {
+        const store = typeof parsed.store === "string" ? parsed.store.trim() : "";
+        const items = Array.isArray(parsed.items) ? parsed.items : [];
+        const registered = items
+            .map(item => {
+                const name = typeof item.name === "string" ? item.name.trim() : "";
+                const price = normalizePrice(item.price);
+                if (!name || price === null) {
+                    return null;
+                }
+                return {
+                    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    name,
+                    price,
+                    store,
+                    raw: state.lastJson
+                };
+            })
+            .filter(Boolean);
+        return { store, items: registered };
+    }
+
+    function normalizePrice(value) {
+        if (typeof value === "number" && Number.isFinite(value)) {
+            return value >= 0 ? value : null;
+        }
+        if (typeof value === "string") {
+            const cleaned = value.replace(/[^0-9.]/g, "");
+            if (!cleaned) {
+                return null;
+            }
+            const parsed = Number.parseFloat(cleaned);
+            if (Number.isNaN(parsed) || parsed < 0) {
+                return null;
+            }
+            return parsed;
+        }
+        return null;
     }
 
     function handleSearch(event) {
@@ -313,7 +237,7 @@
     function renderProducts() {
         const fragment = document.createDocumentFragment();
         const filtered = getFilteredProducts();
-        const sorted = [...filtered].sort((a, b) => a.unitPrice - b.unitPrice);
+        const sorted = [...filtered].sort((a, b) => a.price - b.price);
         sorted.forEach(product => {
             const row = elements.productRowTemplate.content.cloneNode(true);
             populateRow(row, product);
@@ -339,14 +263,14 @@
         row.dataset.productId = product.id;
         row.querySelector('[data-field="name"]').textContent = product.name;
         row.querySelector('[data-field="price"]').textContent = formatCurrency(product.price);
-        row.querySelector('[data-field="quantity"]').textContent = `${product.quantity} ${product.unit}`;
-        row.querySelector('[data-field="unitPrice"]').textContent = `${formatCurrency(product.unitPrice)} / ${product.unit}`;
         row.querySelector('[data-field="store"]').textContent = product.store;
-        row.querySelector('[data-field="date"]').textContent = dayjs(product.date).format("YYYY-MM-DD");
     }
 
     function formatCurrency(value) {
-        const number = Number(value) || 0;
+        const number = Number(value);
+        if (Number.isNaN(number)) {
+            return "-";
+        }
         return `${Math.round(number).toLocaleString()}円`;
     }
 
@@ -359,29 +283,10 @@
                 if (!productId) {
                     return;
                 }
-                if (action === "edit") {
-                    startEdit(productId);
-                }
                 if (action === "delete") {
                     deleteProduct(productId);
                 }
             });
-        });
-    }
-
-    function startEdit(productId) {
-        const target = state.products.find(product => product.id === productId);
-        if (!target) {
-            return;
-        }
-        state.editingId = productId;
-        state.lastRawText = target.rawText || "";
-        displayRawText(state.lastRawText);
-        fillForm(target);
-        elements.modalTitle.textContent = "商品を編集";
-        elements.modal.classList.remove("hidden");
-        window.requestAnimationFrame(() => {
-            elements.productName.focus();
         });
     }
 
@@ -404,7 +309,7 @@
             window.alert("エクスポートするデータがありません。");
             return;
         }
-        const blob = new Blob([JSON.stringify(state.products, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(state.products, null, 2)], { type: "application/json" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
@@ -427,9 +332,12 @@
                     throw new Error("JSON形式が不正です。");
                 }
                 state.products = parsed.map(item => ({
-                    ...item,
-                    unitPrice: calculateUnitPrice(Number(item.price), Number(item.quantity))
-                }));
+                    id: item.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    name: item.name || "",
+                    price: normalizePrice(item.price),
+                    store: item.store || "",
+                    raw: item.raw || ""
+                })).filter(product => product.name && product.price !== null);
                 persistProducts();
                 renderProducts();
                 window.alert("インポートが完了しました。");

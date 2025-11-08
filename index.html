@@ -6,7 +6,6 @@
     <title>PriceScout</title>
     <link rel="stylesheet" href="style.css">
     <script defer src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script defer src="app.js"></script>
 </head>
 <body>
@@ -22,7 +21,11 @@
             <label class="upload-button" for="receiptInput">画像を選択</label>
             <input type="file" id="receiptInput" accept="image/*" hidden>
             <div id="loadingIndicator" class="loading hidden">解析中...</div>
-            <textarea id="rawTextOutput" class="raw-text" placeholder="OCRの生テキストがここに表示されます" readonly></textarea>
+            <textarea id="rawTextOutput" class="raw-text" placeholder="Geminiが返すJSONを表示します。手動で編集してから登録できます。"></textarea>
+            <div class="register-actions">
+                <button id="registerButton" type="button" class="primary" disabled>JSONを登録</button>
+                <small class="register-hint">JSON形式: {"store":"店舗名","items":[{"name":"商品名","price":123}]}</small>
+            </div>
         </section>
 
         <section class="search-section">
@@ -46,10 +49,7 @@
                     <tr>
                         <th>商品名</th>
                         <th>価格</th>
-                        <th>単位量</th>
-                        <th>単位価格</th>
                         <th>店舗</th>
-                        <th>購入日</th>
                         <th>操作</th>
                     </tr>
                 </thead>
@@ -58,61 +58,12 @@
         </section>
     </main>
 
-    <div id="productModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
-        <div class="modal-content">
-            <header class="modal-header">
-                <h2 id="modalTitle">レシート内容の確認</h2>
-                <button id="closeModalButton" type="button" class="icon-button" aria-label="閉じる">×</button>
-            </header>
-            <form id="productForm" autocomplete="off">
-                <div class="form-group">
-                    <label for="productName">商品名</label>
-                    <input type="text" id="productName" name="productName" required>
-                </div>
-                <div class="form-group">
-                    <label for="productPrice">価格 (円)</label>
-                    <input type="number" id="productPrice" name="productPrice" min="0" step="1" required>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="productQuantity">内容量</label>
-                        <input type="number" id="productQuantity" name="productQuantity" min="0" step="0.01" required>
-                    </div>
-                    <div class="form-group">
-                        <label for="productUnit">単位</label>
-                        <input type="text" id="productUnit" name="productUnit" placeholder="g / ml など" required>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="productStore">店舗名</label>
-                    <input type="text" id="productStore" name="productStore" required>
-                </div>
-                <div class="form-group">
-                    <label for="productDate">購入日</label>
-                    <input type="date" id="productDate" name="productDate" required>
-                </div>
-                <div class="form-group">
-                    <label for="productMemo">メモ (任意)</label>
-                    <textarea id="productMemo" name="productMemo" rows="2" placeholder="覚書があれば入力"></textarea>
-                </div>
-                <footer class="modal-footer">
-                    <button type="button" id="modalCancelButton" class="secondary">キャンセル</button>
-                    <button type="submit" class="primary">保存</button>
-                </footer>
-            </form>
-        </div>
-    </div>
-
     <template id="productRowTemplate">
         <tr>
             <td data-field="name"></td>
             <td data-field="price"></td>
-            <td data-field="quantity"></td>
-            <td data-field="unitPrice"></td>
             <td data-field="store"></td>
-            <td data-field="date"></td>
             <td class="actions">
-                <button type="button" data-action="edit">編集</button>
                 <button type="button" data-action="delete" class="danger">削除</button>
             </td>
         </tr>
