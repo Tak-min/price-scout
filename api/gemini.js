@@ -11,7 +11,7 @@ const FALLBACK_RESPONSE = {
     memo: ""
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     if (req.method !== "POST") {
         res.setHeader("Allow", "POST");
         return res.status(405).json({ error: "Method Not Allowed" });
@@ -58,7 +58,7 @@ export default async function handler(req, res) {
         console.error("Gemini handler failure", error);
         return res.status(500).json({ error: "Gemini APIの呼び出しに失敗しました。" });
     }
-}
+};
 
 function buildGeminiPayload(rawText) {
     const prompt = buildPrompt(rawText);
