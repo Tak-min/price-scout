@@ -146,6 +146,9 @@
         });
         if (!response.ok) {
             const payload = await safeReadJson(response);
+            if (response.status === 429) {
+                throw new Error("Gemini APIの利用上限に達しました。数分お待ちいただいてから再度お試しください。");
+            }
             const message = payload?.error || `Gemini API 呼び出しでエラーが発生しました (${response.status})`;
             throw new Error(message);
         }
