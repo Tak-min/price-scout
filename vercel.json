@@ -1,0 +1,33 @@
+{
+  "builds": [
+    {
+      "src": "api/**/*.js",
+      "use": "@vercel/node",
+      "config": {
+        "runtime": "nodejs18.x"
+      }
+    },
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "style.css",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "app.js",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/gemini",
+      "dest": "/api/gemini.js"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
+  ]
+}
