@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PriceScout - レシート価格管理</title>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <style>
+        /* CSSはここに記述します */
+    </style>
+</head>
+<body>
+    <header>
+        <h1>PriceScout</h1>
+        <p>レシート撮影で商品価格を記録し、過去の最安値を検索できるシンプルな価格管理アプリです。</p>
+    </header>
+
+    <main>
+        <!-- APIキー入力セクション -->
+        <section id="apiKeySection">
+            <h2>Google Gemini APIキーを入力してください</h2>
+            <input type="password" id="apiKeyInput" placeholder="APIキーを入力">
+            <button id="saveApiKeyButton">保存</button>
+        </section>
+
+        <!-- メインアプリセクション (APIキー入力後に表示) -->
+        <section id="appSection" style="display: none;">
+            <h2>商品管理</h2>
+            
+            <!-- レシート登録 -->
+            <div>
+                <h3>レシートから商品を一括登録</h3>
+                <input type="file" id="receiptImageInput" accept="image/*">
+                <button id="uploadReceiptButton">画像をアップロードして解析</button>
+            </div>
+
+            <!-- 商品検索 -->
+            <div>
+                <h3>商品を検索</h3>
+                <input type="search" id="searchInput" placeholder="商品名で検索...">
+            </div>
+
+            <!-- 商品リスト -->
+            <div id="productList">
+                <!-- 商品はここに表示されます -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 商品編集モーダル (最初は非表示) -->
+    <div id="editModal" style="display: none;">
+        <div class="modal-content">
+            <h2>商品情報を編集</h2>
+            <!-- 編集フォームは後ほど実装します -->
+            <button id="saveProductButton">保存</button>
+            <button id="cancelEditButton">キャンセル</button>
+            <button id="deleteProductButton">削除</button>
+        </div>
+    </div>
+
+    <script>
+        // JavaScriptはここに記述します
+    </script>
+</body>
+</html>
