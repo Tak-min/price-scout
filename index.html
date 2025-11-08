@@ -7,6 +7,106 @@
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
     <style>
         /* CSSはここに記述します */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+        header {
+            text-align: center;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        section {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        input[type="password"], input[type="search"], input[type="file"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #productList {
+            margin-top: 20px;
+        }
+        .product-item {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        #editModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        .edit-item {
+            display: grid;
+            grid-template-columns: 3fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+        .edit-item input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+        }
+        #editForm div {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -50,16 +150,393 @@
     <!-- 商品編集モーダル (最初は非表示) -->
     <div id="editModal" style="display: none;">
         <div class="modal-content">
-            <h2>商品情報を編集</h2>
-            <!-- 編集フォームは後ほど実装します -->
-            <button id="saveProductButton">保存</button>
+            <h2>商品情報の登録・編集</h2>
+            <form id="editForm">
+                <input type="hidden" id="editProductId">
+                <div>
+                    <label for="editStore">店舗名:</label>
+                    <input type="text" id="editStore" required>
+                </div>
+                <div>
+                    <label for="editDate">購入日:</label>
+                    <input type="date" id="editDate" required>
+                </div>
+                <hr>
+                <h3>商品リスト</h3>
+                <div id="editItemsContainer">
+                    <!-- OCRで読み取った商品がここに動的に追加されます -->
+                </div>
+            </form>
+            <button id="saveProductButton">この内容で保存</button>
             <button id="cancelEditButton">キャンセル</button>
-            <button id="deleteProductButton">削除</button>
+            <button id="deleteProductButton" style="display: none;">この商品を削除</button>
         </div>
     </div>
 
     <script>
         // JavaScriptはここに記述します
+        document.addEventListener('DOMContentLoaded', () => {
+            const apiKeySection = document.getElementById('apiKeySection');
+            const appSection = document.getElementById('appSection');
+            const apiKeyInput = document.getElementById('apiKeyInput');
+            const saveApiKeyButton = document.getElementById('saveApiKeyButton');
+
+            // グローバルな state 変数を window オブジェクトにアタッチ
+            window.state = state;
+
+            // 1. 初期化処理
+            function initialize() {
+                // sessionStorageからAPIキーを取得
+                const savedApiKey = sessionStorage.getItem('gemini_api_key');
+                if (savedApiKey) {
+                    state.apiKey = savedApiKey;
+                    showApp();
+                } else {
+                    showApiKeyInput();
+                }
+
+                // localStorageから商品データを読み込み
+                loadProducts();
+                renderProducts();
+            }
+
+            // APIキー入力表示
+            function showApiKeyInput() {
+                apiKeySection.style.display = 'block';
+                appSection.style.display = 'none';
+            }
+
+            // アプリ本体表示
+            function showApp() {
+                apiKeySection.style.display = 'none';
+                appSection.style.display = 'block';
+            }
+
+            // 2. APIキーの保存
+            saveApiKeyButton.addEventListener('click', () => {
+                const key = apiKeyInput.value.trim();
+                if (key) {
+                    sessionStorage.setItem('gemini_api_key', key);
+                    state.apiKey = key;
+                    showApp();
+                } else {
+                    alert('APIキーを入力してください。');
+                }
+            });
+
+            // 3. 商品データの読み込み
+            function loadProducts() {
+                const savedProducts = localStorage.getItem('priceScoutProducts');
+                if (savedProducts) {
+                    state.products = JSON.parse(savedProducts);
+                }
+            }
+
+            // 4. 商品データの保存
+            function saveProducts() {
+                localStorage.setItem('priceScoutProducts', JSON.stringify(state.products));
+            }
+
+            // 5. 商品リストのレンダリング
+            function renderProducts() {
+                const productList = document.getElementById('productList');
+                productList.innerHTML = ''; // リストをクリア
+
+                const filteredProducts = state.products.filter(p => 
+                    p.name.toLowerCase().includes(state.searchQuery.toLowerCase())
+                );
+
+                if (filteredProducts.length === 0) {
+                    productList.innerHTML = '<p>該当する商品はありません。</p>';
+                    return;
+                }
+
+                // 単位価格でソート
+                filteredProducts.sort((a, b) => {
+                    if (a.unitPrice && b.unitPrice) {
+                        return a.unitPrice - b.unitPrice;
+                    }
+                    if (a.unitPrice) return -1; // aにだけunitPriceがある場合、aを前に
+                    if (b.unitPrice) return 1;  // bにだけunitPriceがある場合、bを前に
+                    return a.price - b.price; // どちらもなければ価格でソート
+                });
+
+                filteredProducts.forEach(product => {
+                    const item = document.createElement('div');
+                    item.className = 'product-item';
+                    
+                    let unitPriceInfo = '';
+                    if (product.unitPrice) {
+                        unitPriceInfo = `(1${product.unit || ''}あたり ≈ ${product.unitPrice.toFixed(2)}円)`;
+                    }
+
+                    item.innerHTML = `
+                        <div>
+                            <strong>${product.name}</strong>
+                            <p>価格: ${product.price}円 ${unitPriceInfo}</p>
+                            <p style="font-size: 0.9em; color: #666;">${product.store} / ${dayjs(product.date).format('YYYY-MM-DD')}</p>
+                        </div>
+                        <button onclick="editProduct('${product.id}')">編集</button>
+                    `;
+                    productList.appendChild(item);
+                });
+            }
+            
+            // 検索機能
+            const searchInput = document.getElementById('searchInput');
+            searchInput.addEventListener('input', (e) => {
+                state.searchQuery = e.target.value;
+                renderProducts();
+            });
+
+            // --- ここからレシート処理とモーダルのロジック ---
+
+            const receiptImageInput = document.getElementById('receiptImageInput');
+            const uploadReceiptButton = document.getElementById('uploadReceiptButton');
+            const editModal = document.getElementById('editModal');
+            const editForm = document.getElementById('editForm');
+            const cancelEditButton = document.getElementById('cancelEditButton');
+            const saveProductButton = document.getElementById('saveProductButton');
+            const editStore = document.getElementById('editStore');
+            const editDate = document.getElementById('editDate');
+            const editItemsContainer = document.getElementById('editItemsContainer');
+            const editProductId = document.getElementById('editProductId');
+            const deleteProductButton = document.getElementById('deleteProductButton');
+
+            // 6. レシート画像アップロード処理
+            uploadReceiptButton.addEventListener('click', async () => {
+                const file = receiptImageInput.files[0];
+                if (!file) {
+                    alert('画像ファイルを選択してください。');
+                    return;
+                }
+                if (!state.apiKey) {
+                    alert('APIキーが設定されていません。');
+                    showApiKeyInput();
+                    return;
+                }
+
+                uploadReceiptButton.disabled = true;
+                uploadReceiptButton.textContent = '解析中...';
+
+                try {
+                    const base64Image = await toBase64(file);
+                    const imageData = base64Image.split(',')[1]; // "data:image/jpeg;base64," の部分を除去
+                    
+                    await callGeminiApi(imageData, file.type);
+
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    alert('画像の処理中にエラーが発生しました。コンソールを確認してください。');
+                } finally {
+                    uploadReceiptButton.disabled = false;
+                    uploadReceiptButton.textContent = '画像をアップロードして解析';
+                    receiptImageInput.value = ''; // ファイル選択をリセット
+                }
+            });
+
+            // ファイルをBase64に変換するヘルパー関数
+            const toBase64 = file => new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+
+            // 7. Gemini API呼び出し
+            async function callGeminiApi(base64Image, mimeType) {
+                const apiKey = state.apiKey;
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+
+                const prompt = `このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。日付はYYYY-MM-DD形式にしてください。`;
+
+                const payload = {
+                    "contents": [{
+                        "parts": [
+                            { "text": prompt },
+                            {
+                                "inlineData": {
+                                    "mimeType": mimeType,
+                                    "data": base64Image
+                                }
+                            }
+                        ]
+                    }],
+                    "generationConfig": {
+                        "responseMimeType": "application/json",
+                        "responseSchema": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "store": { "type": "STRING", "description": "店舗名" },
+                                "date": { "type": "STRING", "description": "購入日 (YYYY-MM-DD形式)" },
+                                "items": {
+                                    "type": "ARRAY",
+                                    "description": "購入した商品のリスト",
+                                    "items": {
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "name": { "type": "STRING", "description": "商品名" },
+                                            "price": { "type": "NUMBER", "description": "価格（税込）" }
+                                        },
+                                        "required": ["name", "price"]
+                                    }
+                                }
+                            },
+                             "required": ["store", "date", "items"]
+                        }
+                    }
+                };
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorBody = await response.json();
+                        throw new Error(`API Error: ${response.status} ${response.statusText}. ${errorBody.error?.message || ''}`);
+                    }
+
+                    const data = await response.json();
+                    const ocrResultText = data.candidates[0].content.parts[0].text;
+                    const ocrResult = JSON.parse(ocrResultText);
+                    
+                    openEditModal(ocrResult);
+
+                } catch (error) {
+                    console.error('Gemini API call failed:', error);
+                    alert(`API呼び出しに失敗しました: ${error.message}`);
+                }
+            }
+
+            // 8. 編集モーダルを開く
+            // グローバルスコープに配置して editProduct から呼び出せるようにする
+            window.openEditModal = function(data, productId = null) {
+                editProductId.value = productId || '';
+                deleteProductButton.style.display = productId ? 'inline-block' : 'none';
+                saveProductButton.textContent = productId ? '更新' : 'この内容で保存';
+
+                if (data) { // OCR結果または既存の商品データ
+                    editStore.value = data.store || '';
+                    editDate.value = data.date ? dayjs(data.date).format('YYYY-MM-DD') : '';
+                    
+                    editItemsContainer.innerHTML = ''; // コンテナをクリア
+                    const items = data.items || (data.name ? [data] : []); // OCR結果と既存データの形式を吸収
+
+                    items.forEach((item, index) => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'edit-item';
+                        itemDiv.innerHTML = `
+                            <input type="text" value="${item.name || ''}" class="edit-item-name" placeholder="商品名">
+                            <input type="number" value="${item.price || ''}" class="edit-item-price" placeholder="価格">
+                            <input type="number" value="${item.quantity || ''}" class="edit-item-quantity" placeholder="内容量">
+                            <input type="text" value="${item.unit || ''}" class="edit-item-unit" placeholder="単位 (g, ml, 個など)">
+                        `;
+                        editItemsContainer.appendChild(itemDiv);
+                    });
+                }
+                editModal.style.display = 'flex';
+            }
+
+            // 9. モーダルを閉じる
+            cancelEditButton.addEventListener('click', () => {
+                editModal.style.display = 'none';
+            });
+
+            // 10. 商品データの保存 (新規・更新)
+            saveProductButton.addEventListener('click', () => {
+                const store = editStore.value.trim();
+                const date = editDate.value;
+                const productId = editProductId.value;
+
+                if (!store || !date) {
+                    alert('店舗名と購入日を入力してください。');
+                    return;
+                }
+
+                const itemElements = editItemsContainer.querySelectorAll('.edit-item');
+                if (itemElements.length === 0) {
+                    alert('商品がありません。');
+                    return;
+                }
+
+                if (productId) { // 更新の場合
+                    // OCRからの複数商品登録を更新するシナリオは複雑なため、
+                    // ここでは単一商品の更新のみを想定
+                    const itemEl = itemElements[0];
+                    const updatedProduct = buildProductFromForm(itemEl, store, date);
+                    updatedProduct.id = productId;
+                    
+                    const index = state.products.findIndex(p => p.id === productId);
+                    if (index !== -1) {
+                        state.products[index] = updatedProduct;
+                    }
+                } else { // 新規作成の場合
+                    itemElements.forEach(itemEl => {
+                        const newProduct = buildProductFromForm(itemEl, store, date);
+                        if (newProduct.name && newProduct.price) {
+                            state.products.push(newProduct);
+                        }
+                    });
+                }
+
+                saveProducts();
+                renderProducts();
+                editModal.style.display = 'none';
+            });
+
+            // フォーム要素から商品オブジェクトを生成するヘルパー
+            function buildProductFromForm(itemEl, store, date) {
+                const name = itemEl.querySelector('.edit-item-name').value.trim();
+                const price = parseFloat(itemEl.querySelector('.edit-item-price').value);
+                const quantity = parseFloat(itemEl.querySelector('.edit-item-quantity').value);
+                const unit = itemEl.querySelector('.edit-item-unit').value.trim();
+
+                const product = {
+                    id: `prod_${new Date().getTime()}_${Math.random()}`,
+                    name,
+                    price,
+                    store,
+                    date,
+                    quantity: isNaN(quantity) ? null : quantity,
+                    unit: unit || null,
+                    unitPrice: null
+                };
+
+                // 単位価格の計算
+                if (product.quantity && product.price) {
+                    product.unitPrice = product.price / product.quantity;
+                }
+                
+                return product;
+            }
+
+            // 11. 商品の削除
+            deleteProductButton.addEventListener('click', () => {
+                const productId = editProductId.value;
+                if (!productId || !confirm('本当にこの商品を削除しますか？')) {
+                    return;
+                }
+                state.products = state.products.filter(p => p.id !== productId);
+                saveProducts();
+                renderProducts();
+                editModal.style.display = 'none';
+            });
+
+            // 初期化関数を呼び出し
+            initialize();
+        });
+
+        // 編集ボタンのグローバル関数 (動的生成のため)
+        function editProduct(productId) {
+            const product = window.state.products.find(p => p.id === productId);
+            if (product) {
+                // グローバルスコープの openEditModal を呼び出す
+                window.openEditModal(product, productId);
+            }
+        }
     </script>
 </body>
 </html>
