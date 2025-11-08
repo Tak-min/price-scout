@@ -3,12 +3,15 @@
 
     const STORAGE_KEY = "priceScout_products";
     const MAX_FILE_SIZE = 5 * 1024 * 1024;
+    const API_BASE_STORAGE_KEY = "priceScout_apiBaseUrl";
 
     const state = {
         products: [],
         searchQuery: "",
         lastJson: ""
     };
+
+    let apiBase = determineApiBase();
 
     const elements = {
         receiptInput: document.getElementById("receiptInput"),
@@ -27,6 +30,55 @@
         attachEventListeners();
         loadProductsFromStorage();
         renderProducts();
+    }
+
+    function determineApiBase() {
+        const meta = document.querySelector('meta[name="price-scout-api-base"]');
+        const candidate = normalizeBaseUrl(meta?.content)
+            || normalizeBaseUrl(window.PRICESCOUT_API_BASE)
+            || normalizeBaseUrl(localStorage.getItem(API_BASE_STORAGE_KEY));
+
+        if (candidate) {
+            return candidate;
+        }
+
+        const origin = window.location.origin;
+        if (origin && origin !== "null") {
+            return normalizeBaseUrl(origin);
+        }
+        return "";
+    }
+
+    function normalizeBaseUrl(value) {
+        if (typeof value !== "string") {
+            return "";
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return "";
+        }
+        return trimmed.replace(/\/$/, "");
+    }
+
+    function ensureApiBaseConfigured() {
+        if (apiBase) {
+            return true;
+        }
+        const input = window.prompt("Gemini APIのベースURLを入力してください (例: https://your-project.vercel.app)");
+        apiBase = normalizeBaseUrl(input || "");
+        if (!apiBase) {
+            window.alert("APIベースURLが設定されていません。VercelのデプロイURLを入力して再試行してください。");
+            return false;
+        }
+        localStorage.setItem(API_BASE_STORAGE_KEY, apiBase);
+        return true;
+    }
+
+    function buildApiUrl(path) {
+        if (!apiBase && !ensureApiBaseConfigured()) {
+            throw new Error("APIベースURLの設定が完了していません。");
+        }
+        return `${apiBase}${path}`;
     }
 
     function attachEventListeners() {
@@ -108,7 +160,8 @@
     async function requestGemini(file) {
         const formData = new FormData();
         formData.append("receipt", file);
-        const response = await fetch("/api/gemini", {
+        const endpoint = buildApiUrl("/api/gemini");
+        const response = await fetch(endpoint, {
             method: "POST",
             body: formData
         });
