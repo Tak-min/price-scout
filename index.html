@@ -321,7 +321,14 @@
             async function callGeminiApi(base64Image, mimeType) {
                 const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
-                const prompt = `このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。日付はYYYY-MM-DD形式にしてください。`;
+                const prompt = `このレシート画像を解析し、以下のJSON形式の文字列「のみ」を返してください。他の説明やマークダウンは一切含めないでください。
+{
+    "store": "店舗名",
+    "date": "YYYY-MM-DD",
+    "items": [
+        { "name": "商品名", "price": 価格 }
+    ]
+}`;
 
                 const payload = {
                     "contents": [{
@@ -334,30 +341,7 @@
                                 }
                             }
                         ]
-                    }],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "responseSchema": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "store": { "type": "STRING", "description": "店舗名" },
-                                "date": { "type": "STRING", "description": "購入日 (YYYY-MM-DD形式)" },
-                                "items": {
-                                    "type": "ARRAY",
-                                    "description": "購入した商品のリスト",
-                                    "items": {
-                                        "type": "OBJECT",
-                                        "properties": {
-                                            "name": { "type": "STRING", "description": "商品名" },
-                                            "price": { "type": "NUMBER", "description": "価格（税込）" }
-                                        },
-                                        "required": ["name", "price"]
-                                    }
-                                }
-                            },
-                             "required": ["store", "date", "items"]
-                        }
-                    }
+                    }]
                 };
 
                 try {
@@ -373,7 +357,14 @@
                     }
 
                     const data = await response.json();
-                    const ocrResultText = data.candidates[0].content.parts[0].text;
+                    let ocrResultText = data.candidates[0].content.parts[0].text;
+                    
+                    // MarkdownのコードブロックからJSONを抽出する
+                    const jsonMatch = ocrResultText.match(/```(json)?\s*([\s\S]*?)\s*```/);
+                    if (jsonMatch && jsonMatch[2]) {
+                        ocrResultText = jsonMatch[2];
+                    }
+
                     const ocrResult = JSON.parse(ocrResultText);
                     
                     openEditModal(ocrResult);
