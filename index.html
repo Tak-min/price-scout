@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PriceScout</title>
+    <link rel="stylesheet" href="style.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script defer src="app.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <h1>PriceScout</h1>
+        <p class="tagline">レシート撮影で最安値を追跡</p>
+    </header>
+
+    <main>
+        <section class="capture-section">
+            <h2>1. レシート画像をアップロード</h2>
+            <p class="note">対応形式: JPG / PNG (5MBまで)</p>
+            <label class="upload-button" for="receiptInput">画像を選択</label>
+            <input type="file" id="receiptInput" accept="image/*" hidden>
+            <div id="loadingIndicator" class="loading hidden">解析中...</div>
+            <textarea id="rawTextOutput" class="raw-text" placeholder="OCRの生テキストがここに表示されます" readonly></textarea>
+        </section>
+
+        <section class="search-section">
+            <h2>2. 商品検索</h2>
+            <input type="search" id="searchInput" placeholder="商品名・店舗名で検索">
+        </section>
+
+        <section class="actions-section">
+            <button id="exportButton" type="button">JSONエクスポート</button>
+            <label class="import-label">
+                JSONインポート
+                <input type="file" id="importInput" accept="application/json" hidden>
+            </label>
+            <button id="clearButton" type="button" class="danger">すべて削除</button>
+        </section>
+
+        <section class="list-section">
+            <h2>3. 登録済みリスト</h2>
+            <table class="product-table">
+                <thead>
+                    <tr>
+                        <th>商品名</th>
+                        <th>価格</th>
+                        <th>単位量</th>
+                        <th>単位価格</th>
+                        <th>店舗</th>
+                        <th>購入日</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="productTableBody"></tbody>
+            </table>
+        </section>
+    </main>
+
+    <div id="productModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <div class="modal-content">
+            <header class="modal-header">
+                <h2 id="modalTitle">レシート内容の確認</h2>
+                <button id="closeModalButton" type="button" class="icon-button" aria-label="閉じる">×</button>
+            </header>
+            <form id="productForm" autocomplete="off">
+                <div class="form-group">
+                    <label for="productName">商品名</label>
+                    <input type="text" id="productName" name="productName" required>
+                </div>
+                <div class="form-group">
+                    <label for="productPrice">価格 (円)</label>
+                    <input type="number" id="productPrice" name="productPrice" min="0" step="1" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="productQuantity">内容量</label>
+                        <input type="number" id="productQuantity" name="productQuantity" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="productUnit">単位</label>
+                        <input type="text" id="productUnit" name="productUnit" placeholder="g / ml など" required>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="productStore">店舗名</label>
+                    <input type="text" id="productStore" name="productStore" required>
+                </div>
+                <div class="form-group">
+                    <label for="productDate">購入日</label>
+                    <input type="date" id="productDate" name="productDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="productMemo">メモ (任意)</label>
+                    <textarea id="productMemo" name="productMemo" rows="2" placeholder="覚書があれば入力"></textarea>
+                </div>
+                <footer class="modal-footer">
+                    <button type="button" id="modalCancelButton" class="secondary">キャンセル</button>
+                    <button type="submit" class="primary">保存</button>
+                </footer>
+            </form>
+        </div>
+    </div>
+
+    <template id="productRowTemplate">
+        <tr>
+            <td data-field="name"></td>
+            <td data-field="price"></td>
+            <td data-field="quantity"></td>
+            <td data-field="unitPrice"></td>
+            <td data-field="store"></td>
+            <td data-field="date"></td>
+            <td class="actions">
+                <button type="button" data-action="edit">編集</button>
+                <button type="button" data-action="delete" class="danger">削除</button>
+            </td>
+        </tr>
+    </template>
+</body>
+</html>
