@@ -126,8 +126,8 @@
         const worker = await window.Tesseract.createWorker("jpn");
         try {
             await worker.setParameters({
-                tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz円¥:%.-()/\\+*[]{}<>~・, 　アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン店計税品領収合計税込小計本体",
-                tessedit_pageseg_mode: window.Tesseract.PSM.AUTO
+                // レシートは縦長の単一ブロック構造が多いため、このモードで安定しやすい。
+                tessedit_pageseg_mode: window.Tesseract.PSM.SINGLE_BLOCK
             });
             const { data } = await worker.recognize(file);
             return (data?.text || "").trim();
