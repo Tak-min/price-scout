@@ -319,7 +319,7 @@
 
             // 7. Gemini API呼び出し
             async function callGeminiApi(base64Image, mimeType) {
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
 
                 const prompt = `このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。日付はYYYY-MM-DD形式にしてください。`;
 
