@@ -765,8 +765,8 @@
 
             // 2. 単位価格でソート (単位価格が計算できるもの優先、安い順)
             filteredProducts.sort((a, b) => {
-                const aPrice = a.unitPrice === Infinity ? 9999999 : a.unitPrice;
-                const bPrice = b.unitPrice === Infinity ? 9999999 : b.unitPrice;
+                const aPrice = (typeof a.unitPrice === 'number' && isFinite(a.unitPrice)) ? a.unitPrice : Infinity;
+                const bPrice = (typeof b.unitPrice === 'number' && isFinite(b.unitPrice)) ? b.unitPrice : Infinity;
                 if (aPrice !== bPrice) {
                     return aPrice - bPrice;
                 }
@@ -778,7 +778,8 @@
             let cheapestPrice = Infinity;
             if (filteredProducts.length > 0) {
                  cheapestPrice = filteredProducts.reduce((min, p) => {
-                    return (p.unitPrice < min && p.unitPrice !== Infinity) ? p.unitPrice : min;
+                    const price = (typeof p.unitPrice === 'number' && isFinite(p.unitPrice)) ? p.unitPrice : Infinity;
+                    return (price < min && price !== Infinity) ? price : min;
                 }, Infinity);
             }
 
@@ -800,7 +801,8 @@
                 const formattedDate = formatDate(product.date, 'MM/DD');
                 
                 let unitPriceDisplay = '';
-                if (product.unitPrice !== Infinity) {
+                // ★★★ ここが修正箇所 ★★★
+                if (typeof product.unitPrice === 'number' && isFinite(product.unitPrice)) {
                     unitPriceDisplay = `<span class="unit-price">${product.unitPrice.toFixed(2)}円/${product.unit}</span>`;
                 } else {
                     unitPriceDisplay = `<span class="unit-price">---</span>`;
