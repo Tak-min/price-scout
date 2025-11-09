@@ -3,504 +3,857 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceScout - レシート価格管理</title>
+    <title>PriceScout</title>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
     <style>
-        /* CSSはここに記述します */
+        /* 全体のスタイル */
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            line-height: 1.6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #f5f7fa;
             color: #333;
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f9f9f9;
-        }
-        header {
-            text-align: center;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-        }
-        h1 {
-            color: #333;
-        }
-        h2 {
-            color: #555;
-            border-bottom: 2px solid #eee;
-            padding-bottom: 10px;
-        }
-        section {
-            background: #fff;
-            padding: 20px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        input[type="password"], input[type="search"], input[type="file"] {
-            width: calc(100% - 22px);
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-bottom: 10px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 16px;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        #productList {
-            margin-top: 20px;
-        }
-        .product-item {
-            border: 1px solid #eee;
-            padding: 15px;
-            margin-bottom: 10px;
-            border-radius: 5px;
+            margin: 0;
+            padding: 16px;
             display: flex;
-            justify-content: space-between;
+            flex-direction: column;
             align-items: center;
         }
-        #editModal {
+
+        .container {
+            width: 100%;
+            max-width: 600px;
+        }
+
+        h1 {
+            color: #4A90E2;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        /* 操作エリア */
+        .controls {
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+            margin-bottom: 24px;
+        }
+
+        #imageUploader {
+            display: none;
+        }
+
+        #uploadLabel {
+            display: block;
+            background: #4A90E2;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        #uploadLabel:hover {
+            background: #3a7ac8;
+        }
+        #uploadLabel span {
+            font-size: 1.5em;
+            margin-right: 8px;
+        }
+
+        #searchInput {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box; /* paddingを含めてwidth 100% */
+            margin-top: 16px;
+        }
+        #searchInput:focus {
+            outline: none;
+            border-color: #4A90E2;
+        }
+
+        /* 商品リスト */
+        #productList {
+            margin-top: 16px;
+        }
+
+        .product-card {
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            border-left: 5px solid #50C878; /* デフォルトのボーダー */
+        }
+
+        .product-card.cheapest {
+            border-left-color: #E74C3C; /* 最安値 */
+        }
+        
+        .product-card-main {
+            flex: 1 1 70%;
+        }
+
+        .product-name {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+
+        .product-price {
+            font-size: 16px;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        .product-price .unit-price {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4A90E2;
+        }
+        .product-card.cheapest .unit-price {
+            color: #E74C3C;
+        }
+
+        .product-meta {
+            font-size: 14px;
+            color: #777;
+        }
+        .product-meta .store { font-weight: bold; }
+
+        .product-actions {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-button {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 5px;
+            color: #777;
+        }
+        .delete-button { color: #E74C3C; }
+        .edit-button { color: #4A90E2; }
+
+        /* モーダル */
+        .modal {
+            display: none;
             position: fixed;
-            top: 0;
+            z-index: 100;
             left: 0;
+            top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0,0,0,0.5);
-            display: flex;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.5);
             justify-content: center;
             align-items: center;
         }
+
         .modal-content {
-            background: white;
-            padding: 30px;
+            background: #fefefe;
+            margin: auto;
+            padding: 24px;
             border-radius: 8px;
             width: 90%;
             max-width: 500px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            max-height: 90vh;
+            overflow-y: auto;
         }
-        .edit-item {
-            display: grid;
-            grid-template-columns: 3fr 1fr 1fr 1fr;
-            gap: 10px;
-            margin-bottom: 10px;
-            align-items: center;
+        
+        #editForm h2 {
+            margin-top: 0;
         }
-        .edit-item input {
+
+        #editForm label {
+            display: block;
+            font-weight: bold;
+            margin-top: 16px;
+            margin-bottom: 6px;
+        }
+
+        #editForm input[type="text"],
+        #editForm input[type="date"],
+        #editForm input[type="number"],
+        #editForm select {
             width: 100%;
-            padding: 8px;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
             box-sizing: border-box;
         }
-        #editForm div {
-            margin-bottom: 15px;
+
+        #itemInputs .item-group {
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 12px;
+            margin-bottom: 12px;
+            background: #f9f9f9;
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
+        
+        #itemInputs .item-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            align-items: center;
+        }
+        #itemInputs .item-row input[name="name"] {
+            grid-column: 1 / -1; /* 商品名は1行フル */
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        
+        #saveButton, #closeModalButton {
+            flex: 1;
+            padding: 12px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+        }
+
+        #saveButton {
+            background: #50C878;
+            color: white;
+        }
+        #closeModalButton {
+            background: #ddd;
+            color: #333;
+        }
+
+        /* データ管理ボタン */
+        .data-management {
+            display: flex;
+            gap: 12px;
+            margin-top: 16px;
+        }
+        .data-management button {
+            flex: 1;
+            padding: 10px;
+            background: #777;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #importButton { display: none; } /* インポートは今回は省略 */
+
+        /* ローディングインジケーター */
+        #loadingIndicator {
+            display: none;
+            position: fixed;
+            z-index: 200;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-size: 1.2em;
+            color: #4A90E2;
             font-weight: bold;
         }
+        .loader {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #4A90E2;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 16px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
     </style>
 </head>
 <body>
-    <header>
+
+    <div class="container">
         <h1>PriceScout</h1>
-        <p>レシート撮影で商品価格を記録し、過去の最安値を検索できるシンプルな価格管理アプリです。</p>
-    </header>
 
-    <main>
-        <!-- APIキー入力セクションは削除されました -->
-
-        <!-- メインアプリセクション -->
-        <section id="appSection">
-            <h2>商品管理</h2>
+        <div class="controls">
+            <label for="imageUploader" id="uploadLabel">
+                <span>📷</span> レシートをアップロード
+            </label>
+            <input type="file" id="imageUploader" accept="image/jpeg, image/png, image/webp">
             
-            <!-- レシート登録 -->
-            <div>
-                <h3>レシートから商品を一括登録</h3>
-                <input type="file" id="receiptImageInput" accept="image/*">
-                <button id="uploadReceiptButton">画像をアップロードして解析</button>
-            </div>
+            <input type="text" id="searchInput" placeholder="商品名で検索...">
+        </div>
 
-            <!-- 商品検索 -->
-            <div>
-                <h3>商品を検索</h3>
-                <input type="search" id="searchInput" placeholder="商品名で検索...">
-            </div>
+        <div class="data-management">
+            <button id="exportButton">データをエクスポート</button>
+            <input type="file" id="importButton" accept=".json">
+        </div>
 
-            <!-- 商品リスト -->
-            <div id="productList">
-                <!-- 商品はここに表示されます -->
+        <div id="productList">
             </div>
-        </section>
-    </main>
+    </div>
 
-    <!-- 商品編集モーダル (最初は非表示) -->
-    <div id="editModal" style="display: none;">
+    <div id="editModal" class="modal">
         <div class="modal-content">
-            <h2>商品情報の登録・編集</h2>
             <form id="editForm">
-                <input type="hidden" id="editProductId">
-                <div>
-                    <label for="editStore">店舗名:</label>
-                    <input type="text" id="editStore" required>
-                </div>
-                <div>
-                    <label for="editDate">購入日:</label>
-                    <input type="date" id="editDate" required>
-                </div>
-                <hr>
+                <h2>レシート内容の確認・編集</h2>
+                <input type="hidden" id="editingId">
+                
+                <label for="store">店舗名</label>
+                <input type="text" id="store" required>
+                
+                <label for="date">購入日</label>
+                <input type="date" id="date" required>
+                
+                <hr style="margin-top: 24px; border: 1px solid #eee;">
+                
                 <h3>商品リスト</h3>
-                <div id="editItemsContainer">
-                    <!-- OCRで読み取った商品がここに動的に追加されます -->
+                <div id="itemInputs">
+                    </div>
+                
+                <div class="form-actions">
+                    <button type="button" id="closeModalButton">キャンセル</button>
+                    <button type="submit" id="saveButton">保存</button>
                 </div>
             </form>
-            <button id="saveProductButton">この内容で保存</button>
-            <button id="cancelEditButton">キャンセル</button>
-            <button id="deleteProductButton" style="display: none;">この商品を削除</button>
         </div>
     </div>
 
+    <div id="loadingIndicator" class="modal">
+        <div>
+            <div class="loader"></div>
+            <p>AIがレシートを解析中です...</p>
+        </div>
+    </div>
+
+
     <script>
-        // JavaScriptはここに記述します
+        // ======================================================
+        // APIキー設定 (超重要)
+        // ======================================================
+        // 
+        // 警告: あなたのGemini APIキーを以下の '...' の部分に貼り付けてください。
+        // このファイルは絶対に他人に共有したり、Web上に公開しないでください。
+        // 
+        const API_KEY = 'AIzaSyCsYqX5sCqc0xMwo4mqvgTlgljncqVp0y0';
+        // 
+        // ======================================================
+        
+        // Gemini API エンドポイント (gemini-1.5-flash-latest v1beta)
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${API_KEY}`;
+        const STORAGE_KEY = 'priceScoutProducts';
+
+        // アプリケーションの状態
+        const state = {
+            products: [], // {id, name, price, quantity, unit, store, date, unitPrice}
+            searchQuery: '',
+            editingId: null, // 新規登録ならnull, 編集ならID
+        };
+
+        // DOM要素
+        const imageUploader = document.getElementById('imageUploader');
+        const uploadLabel = document.getElementById('uploadLabel');
+        const searchInput = document.getElementById('searchInput');
+        const productList = document.getElementById('productList');
+        const editModal = document.getElementById('editModal');
+        const editForm = document.getElementById('editForm');
+        const closeModalButton = document.getElementById('closeModalButton');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const storeInput = document.getElementById('store');
+        const dateInput = document.getElementById('date');
+        const itemInputs = document.getElementById('itemInputs');
+        const editingIdInput = document.getElementById('editingId');
+        const exportButton = document.getElementById('exportButton');
+
+        // ======================================================
+        // 初期化処理
+        // ======================================================
         document.addEventListener('DOMContentLoaded', () => {
-            const appSection = document.getElementById('appSection');
-            const GEMINI_API_KEY = "AIzaSyCsYqX5sCqc0xMwo4mqvgTlgljncqVp0y0";
-          
-            // 状態管理
-            const state = {
-                products: [],
-                searchQuery: '',
-            };
-
-            // グローバルな state 変数を window オブジェクトにアタッチ
-            window.state = state;
-
-            // 1. 初期化処理
-            function initialize() {
-                if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-                    alert("JavaScriptコード内の 'GEMINI_API_KEY' にご自身のAPIキーを設定してください。");
-                }
-                showApp();
-                // localStorageから商品データを読み込み
-                loadProducts();
-                renderProducts();
-            }
-
-            // アプリ本体表示
-            function showApp() {
-                appSection.style.display = 'block';
-            }
-
-            // 3. 商品データの読み込み
-            function loadProducts() {
-                const savedProducts = localStorage.getItem('priceScoutProducts');
-                if (savedProducts) {
-                    state.products = JSON.parse(savedProducts);
-                }
-            }
-
-            // 4. 商品データの保存
-            function saveProducts() {
-                localStorage.setItem('priceScoutProducts', JSON.stringify(state.products));
-            }
-
-            // 5. 商品リストのレンダリング
-            function renderProducts() {
-                const productList = document.getElementById('productList');
-                productList.innerHTML = ''; // リストをクリア
-
-                const filteredProducts = state.products.filter(p => 
-                    p.name.toLowerCase().includes(state.searchQuery.toLowerCase())
-                );
-
-                if (filteredProducts.length === 0) {
-                    productList.innerHTML = '<p>該当する商品はありません。</p>';
-                    return;
-                }
-
-                // 単位価格でソート
-                filteredProducts.sort((a, b) => {
-                    if (a.unitPrice && b.unitPrice) {
-                        return a.unitPrice - b.unitPrice;
-                    }
-                    if (a.unitPrice) return -1; // aにだけunitPriceがある場合、aを前に
-                    if (b.unitPrice) return 1;  // bにだけunitPriceがある場合、bを前に
-                    return a.price - b.price; // どちらもなければ価格でソート
-                });
-
-                filteredProducts.forEach(product => {
-                    const item = document.createElement('div');
-                    item.className = 'product-item';
-                    
-                    let unitPriceInfo = '';
-                    if (product.unitPrice) {
-                        unitPriceInfo = `(1${product.unit || ''}あたり ≈ ${product.unitPrice.toFixed(2)}円)`;
-                    }
-
-                    item.innerHTML = `
-                        <div>
-                            <strong>${product.name}</strong>
-                            <p>価格: ${product.price}円 ${unitPriceInfo}</p>
-                            <p style="font-size: 0.9em; color: #666;">${product.store} / ${dayjs(product.date).format('YYYY-MM-DD')}</p>
-                        </div>
-                        <button onclick="editProduct('${product.id}')">編集</button>
-                    `;
-                    productList.appendChild(item);
-                });
+            // Day.jsがロードされているか確認
+            if (typeof dayjs === 'undefined') {
+                console.error('Day.jsの読み込みに失敗しました');
             }
             
-            // 検索機能
-            const searchInput = document.getElementById('searchInput');
-            searchInput.addEventListener('input', (e) => {
-                state.searchQuery = e.target.value;
-                renderProducts();
+            // イベントリスナーを設定
+            imageUploader.addEventListener('change', handleImageUpload);
+            searchInput.addEventListener('input', handleSearch);
+            editForm.addEventListener('submit', handleFormSubmit);
+            closeModalButton.addEventListener('click', closeModal);
+            exportButton.addEventListener('click', exportData);
+            
+            // モーダルの外側クリックで閉じる
+            editModal.addEventListener('click', (e) => {
+                if (e.target === editModal) closeModal();
             });
 
-            // --- ここからレシート処理とモーダルのロジック ---
+            // ストレージからデータをロードして表示
+            loadFromStorage();
+            renderProducts();
+        });
 
-            const receiptImageInput = document.getElementById('receiptImageInput');
-            const uploadReceiptButton = document.getElementById('uploadReceiptButton');
-            const editModal = document.getElementById('editModal');
-            const editForm = document.getElementById('editForm');
-            const cancelEditButton = document.getElementById('cancelEditButton');
-            const saveProductButton = document.getElementById('saveProductButton');
-            const editStore = document.getElementById('editStore');
-            const editDate = document.getElementById('editDate');
-            const editItemsContainer = document.getElementById('editItemsContainer');
-            const editProductId = document.getElementById('editProductId');
-            const deleteProductButton = document.getElementById('deleteProductButton');
+        // ======================================================
+        // 画像アップロードとAI解析
+        // ======================================================
+        async function handleImageUpload(e) {
+            const file = e.target.files[0];
+            if (!file) return;
 
-            // 6. レシート画像アップロード処理
-            uploadReceiptButton.addEventListener('click', async () => {
-                const file = receiptImageInput.files[0];
-                if (!file) {
-                    alert('画像ファイルを選択してください。');
-                    return;
+            // フォームをリセット
+            e.target.value = null;
+
+            // ローディング表示
+            loadingIndicator.style.display = 'flex';
+
+            try {
+                // 1. 画像をBase64に変換
+                const base64Image = await fileToBase64(file);
+                const mimeType = file.type;
+
+                // 2. Gemini APIを呼び出し
+                const geminiResponse = await callGeminiAPI(base64Image, mimeType);
+                
+                // 3. レスポンスをパースしてモーダル表示
+                if (geminiResponse) {
+                    showEditModal(geminiResponse, null); // 新規登録
                 }
-                if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
-                    alert("APIキーが設定されていません。コードを編集してください。");
-                    return;
-                }
+            } catch (error) {
+                console.error('AI解析エラー:', error);
+                alert(`AI解析に失敗しました。\n${error.message}\n\nAPIキーが正しいか、コンソールを確認してください。`);
+            } finally {
+                // ローディング非表示
+                loadingIndicator.style.display = 'none';
+            }
+        }
 
-                uploadReceiptButton.disabled = true;
-                uploadReceiptButton.textContent = '解析中...';
-
-                try {
-                    const base64Image = await toBase64(file);
-                    const imageData = base64Image.split(',')[1]; // "data:image/jpeg;base64," の部分を除去
-                    
-                    await callGeminiApi(imageData, file.type);
-
-                } catch (error) {
-                    console.error('Error processing image:', error);
-                    alert('画像の処理中にエラーが発生しました。コンソールを確認してください。');
-                } finally {
-                    uploadReceiptButton.disabled = false;
-                    uploadReceiptButton.textContent = '画像をアップロードして解析';
-                    receiptImageInput.value = ''; // ファイル選択をリセット
-                }
-            });
-
-            // ファイルをBase64に変換するヘルパー関数
-            const toBase64 = file => new Promise((resolve, reject) => {
+        /**
+         * FileオブジェクトをBase64文字列に変換
+         */
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
                 const reader = new FileReader();
                 reader.readAsDataURL(file);
-                reader.onload = () => resolve(reader.result);
+                reader.onload = () => resolve(reader.result.split(',')[1]); // "data:image/jpeg;base64," の部分を除去
                 reader.onerror = error => reject(error);
             });
+        }
 
-            // 7. Gemini API呼び出し
-            async function callGeminiApi(base64Image, mimeType) {
-                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
+        /**
+         * Gemini APIを呼び出してレシートを解析
+         */
+        async function callGeminiAPI(base64Image, mimeType) {
+            // JSONスキーマを定義するプロンプト
+            const prompt = `
+                このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。
+                日付は必ず YYYY-MM-DD 形式にしてください。
+                商品は "合計" や "小計"、"値引"、"税" を除いた、実際に購入した個別の品目のみを含めてください。
+            `;
 
-                const prompt = `このレシート画像を解析し、以下のJSON形式の文字列「のみ」を返してください。他の説明やマークダウンは一切含めないでください。
-{
-    "store": "店舗名",
-    "date": "YYYY-MM-DD",
-    "items": [
-        { "name": "商品名", "price": 価格 }
-    ]
-}`;
-
-                const payload = {
-                    "contents": [{
-                        "parts": [
-                            { "text": prompt },
+            // Gemini API v1beta (gemini-1.5-flash-latest) のリクエストボディ
+            const requestBody = {
+                contents: [
+                    {
+                        parts: [
+                            { text: prompt },
                             {
-                                "inlineData": {
-                                    "mimeType": mimeType,
-                                    "data": base64Image
+                                inlineData: {
+                                    mimeType: mimeType,
+                                    data: base64Image
                                 }
                             }
                         ]
-                    }]
-                };
+                    }
+                ],
+                // JSONモードとスキーマを定義
+                generationConfig: {
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            store: { type: "STRING", description: "店舗名" },
+                            date: { type: "STRING", description: "購入日 (YYYY-MM-DD形式)" },
+                            items: {
+                                type: "ARRAY",
+                                description: "購入した商品のリスト",
+                                items: {
+                                    type: "OBJECT",
+                                    properties: {
+                                        name: { type: "STRING", description: "商品名" },
+                                        price: { type: "NUMBER", description: "価格（税込）" }
+                                    },
+                                    required: ["name", "price"]
+                                }
+                            }
+                        },
+                        required: ["store", "date", "items"]
+                    }
+                }
+            };
+            
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(requestBody)
+            });
 
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error("API Error Response:", errorData);
+                throw new Error(`APIリクエストエラー (${response.status}): ${errorData.error.message}`);
+            }
+
+            const data = await response.json();
+            
+            // レスポンスのパース (v1beta仕様)
+            // candidates[0].content.parts[0].text にJSON文字列が入っている
+            if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].text) {
                 try {
-                    const response = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-
-                    if (!response.ok) {
-                        const errorBody = await response.json();
-                        throw new Error(`API Error: ${response.status} ${response.statusText}. ${errorBody.error?.message || ''}`);
-                    }
-
-                    const data = await response.json();
-                    let ocrResultText = data.candidates[0].content.parts[0].text;
-                    
-                    // MarkdownのコードブロックからJSONを抽出する
-                    const jsonMatch = ocrResultText.match(/```(json)?\s*([\s\S]*?)\s*```/);
-                    if (jsonMatch && jsonMatch[2]) {
-                        ocrResultText = jsonMatch[2];
-                    }
-
-                    const ocrResult = JSON.parse(ocrResultText);
-                    
-                    openEditModal(ocrResult);
-
-                } catch (error) {
-                    console.error('Gemini API call failed:', error);
-                    alert(`API呼び出しに失敗しました: ${error.message}`);
+                    const jsonData = JSON.parse(data.candidates[0].content.parts[0].text);
+                    return jsonData;
+                } catch (e) {
+                    console.error("レスポンスJSONのパース失敗:", e, data.candidates[0].content.parts[0].text);
+                    throw new Error("AIからのレスポンス(JSON)の形式が不正です。");
                 }
-            }
-
-            // 8. 編集モーダルを開く
-            // グローバルスコープに配置して editProduct から呼び出せるようにする
-            window.openEditModal = function(data, productId = null) {
-                editProductId.value = productId || '';
-                deleteProductButton.style.display = productId ? 'inline-block' : 'none';
-                saveProductButton.textContent = productId ? '更新' : 'この内容で保存';
-
-                if (data) { // OCR結果または既存の商品データ
-                    editStore.value = data.store || '';
-                    editDate.value = data.date ? dayjs(data.date).format('YYYY-MM-DD') : '';
-                    
-                    editItemsContainer.innerHTML = ''; // コンテナをクリア
-                    const items = data.items || (data.name ? [data] : []); // OCR結果と既存データの形式を吸収
-
-                    items.forEach((item, index) => {
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'edit-item';
-                        itemDiv.innerHTML = `
-                            <input type="text" value="${item.name || ''}" class="edit-item-name" placeholder="商品名">
-                            <input type="number" value="${item.price || ''}" class="edit-item-price" placeholder="価格">
-                            <input type="number" value="${item.quantity || ''}" class="edit-item-quantity" placeholder="内容量">
-                            <input type="text" value="${item.unit || ''}" class="edit-item-unit" placeholder="単位 (g, ml, 個など)">
-                        `;
-                        editItemsContainer.appendChild(itemDiv);
-                    });
-                }
-                editModal.style.display = 'flex';
-            }
-
-            // 9. モーダルを閉じる
-            cancelEditButton.addEventListener('click', () => {
-                editModal.style.display = 'none';
-            });
-
-            // 10. 商品データの保存 (新規・更新)
-            saveProductButton.addEventListener('click', () => {
-                const store = editStore.value.trim();
-                const date = editDate.value;
-                const productId = editProductId.value;
-
-                if (!store || !date) {
-                    alert('店舗名と購入日を入力してください。');
-                    return;
-                }
-
-                const itemElements = editItemsContainer.querySelectorAll('.edit-item');
-                if (itemElements.length === 0) {
-                    alert('商品がありません。');
-                    return;
-                }
-
-                if (productId) { // 更新の場合
-                    // OCRからの複数商品登録を更新するシナリオは複雑なため、
-                    // ここでは単一商品の更新のみを想定
-                    const itemEl = itemElements[0];
-                    const updatedProduct = buildProductFromForm(itemEl, store, date);
-                    updatedProduct.id = productId;
-                    
-                    const index = state.products.findIndex(p => p.id === productId);
-                    if (index !== -1) {
-                        state.products[index] = updatedProduct;
-                    }
-                } else { // 新規作成の場合
-                    itemElements.forEach(itemEl => {
-                        const newProduct = buildProductFromForm(itemEl, store, date);
-                        if (newProduct.name && newProduct.price) {
-                            state.products.push(newProduct);
-                        }
-                    });
-                }
-
-                saveProducts();
-                renderProducts();
-                editModal.style.display = 'none';
-            });
-
-            // フォーム要素から商品オブジェクトを生成するヘルパー
-            function buildProductFromForm(itemEl, store, date) {
-                const name = itemEl.querySelector('.edit-item-name').value.trim();
-                const price = parseFloat(itemEl.querySelector('.edit-item-price').value);
-                const quantity = parseFloat(itemEl.querySelector('.edit-item-quantity').value);
-                const unit = itemEl.querySelector('.edit-item-unit').value.trim();
-
-                const product = {
-                    id: `prod_${new Date().getTime()}_${Math.random()}`,
-                    name,
-                    price,
-                    store,
-                    date,
-                    quantity: isNaN(quantity) ? null : quantity,
-                    unit: unit || null,
-                    unitPrice: null
-                };
-
-                // 単位価格の計算
-                if (product.quantity && product.price) {
-                    product.unitPrice = product.price / product.quantity;
-                }
-                
-                return product;
-            }
-
-            // 11. 商品の削除
-            deleteProductButton.addEventListener('click', () => {
-                const productId = editProductId.value;
-                if (!productId || !confirm('本当にこの商品を削除しますか？')) {
-                    return;
-                }
-                state.products = state.products.filter(p => p.id !== productId);
-                saveProducts();
-                renderProducts();
-                editModal.style.display = 'none';
-            });
-
-            // 初期化関数を呼び出し
-            initialize();
-        });
-
-        // 編集ボタンのグローバル関数 (動的生成のため)
-        function editProduct(productId) {
-            const product = window.state.products.find(p => p.id === productId);
-            if (product) {
-                // グローバルスコープの openEditModal を呼び出す
-                window.openEditModal(product, productId);
+            } else {
+                console.error("AIレスポンスの形式が不正:", data);
+                throw new Error("AIから期待した形式のレスポンスが得られませんでした。");
             }
         }
+
+        // ======================================================
+        // モーダルとフォーム処理
+        // ======================================================
+
+        /**
+         * 編集モーダルを表示
+         * @param {object} data - AIからの解析データ (新規登録時)
+         * @param {string} editingId - 編集対象のID (編集時)
+         */
+        function showEditModal(data, editingId) {
+            editForm.reset();
+            itemInputs.innerHTML = '';
+            
+            if (editingId) {
+                // 編集の場合
+                const product = state.products.find(p => p.id === editingId);
+                if (!product) return;
+                
+                state.editingId = editingId;
+                editingIdInput.value = editingId;
+                storeInput.value = product.store;
+                dateInput.value = product.date;
+                
+                // 1つの商品だけをフォームにセット
+                addItemInput(product.name, product.price, product.quantity, product.unit, product.id);
+
+            } else if (data) {
+                // 新規登録の場合 (AIデータあり)
+                state.editingId = null;
+                editingIdInput.value = '';
+                storeInput.value = data.store || '';
+                dateInput.value = data.date ? formatDate(data.date, 'YYYY-MM-DD') : formatDate(new Date(), 'YYYY-MM-DD');
+                
+                // AIが抽出したすべての商品をフォームにセット
+                if (data.items && data.items.length > 0) {
+                    data.items.forEach(item => {
+                        addItemInput(item.name, item.price);
+                    });
+                } else {
+                    // 商品が見つからなかった場合も空の欄を1つ追加
+                    addItemInput();
+                }
+            }
+            
+            editModal.style.display = 'flex';
+        }
+
+        /**
+         * 商品入力欄をモーダルに追加
+         */
+        function addItemInput(name = '', price = '', quantity = '', unit = 'g', id = null) {
+            const newId = id || `new_${Date.now()}_${Math.random()}`;
+            
+            const group = document.createElement('div');
+            group.className = 'item-group';
+            group.dataset.id = newId; // フォーム送信時にこのIDを参照する
+            
+            group.innerHTML = `
+                <input type="hidden" name="id" value="${newId}">
+                <div class="item-row">
+                    <input type="text" name="name" placeholder="商品名" value="${escapeHTML(name)}" required>
+                </div>
+                <div class="item-row" style="margin-top: 8px;">
+                    <input type="number" name="price" placeholder="価格(円)" value="${price}" required>
+                    <input type="number" name="quantity" placeholder="内容量" value="${quantity}">
+                </div>
+                <div class="item-row" style="margin-top: 8px;">
+                    <select name="unit">
+                        <option value="g" ${unit === 'g' ? 'selected' : ''}>g (グラム)</option>
+                        <option value="ml" ${unit === 'ml' ? 'selected' : ''}>ml (ミリリットル)</option>
+                        <option value="個" ${unit === '個' ? 'selected' : ''}>個 (こ)</option>
+                    </select>
+                </div>
+            `;
+            itemInputs.appendChild(group);
+        }
+
+        function closeModal() {
+            editModal.style.display = 'none';
+            state.editingId = null;
+            editingIdInput.value = '';
+        }
+
+        /**
+         * フォーム送信（保存）処理
+         */
+        function handleFormSubmit(e) {
+            e.preventDefault();
+            
+            const store = storeInput.value;
+            const date = dateInput.value;
+            const editingId = editingIdInput.value; // モーダルを開いたときのID
+
+            // 商品入力欄をすべて取得
+            const itemGroups = itemInputs.querySelectorAll('.item-group');
+            
+            itemGroups.forEach(group => {
+                const id = group.dataset.id;
+                const name = group.querySelector('[name="name"]').value;
+                const price = Number(group.querySelector('[name="price"]').value);
+                const quantity = Number(group.querySelector('[name="quantity"]').value);
+                const unit = group.querySelector('[name="unit"]').value;
+
+                if (!name || price <= 0) return; // 商品名と価格は必須
+
+                const unitPrice = calculateUnitPrice(price, quantity);
+
+                const product = {
+                    id: (id.startsWith('new_') || !id) ? `prod_${Date.now()}_${Math.random()}` : id, // 新規か既存か
+                    name,
+                    price,
+                    quantity,
+                    unit,
+                    store,
+                    date,
+                    unitPrice
+                };
+
+                // state.products を更新
+                const existingIndex = state.products.findIndex(p => p.id === product.id);
+                if (existingIndex > -1) {
+                    // 更新
+                    state.products[existingIndex] = product;
+                } else {
+                    // 新規追加
+                    state.products.push(product);
+                }
+            });
+
+            saveToStorage();
+            renderProducts();
+            closeModal();
+        }
+
+        // ======================================================
+        // データ表示と検索
+        // ======================================================
+        
+        /**
+         * 検索ハンドラ
+         */
+        function handleSearch(e) {
+            state.searchQuery = e.target.value.toLowerCase();
+            renderProducts();
+        }
+
+        /**
+         * 商品リストを再描画
+         */
+        function renderProducts() {
+            productList.innerHTML = ''; // リストをクリア
+
+            // 1. フィルタリング
+            let filteredProducts = state.products;
+            if (state.searchQuery) {
+                filteredProducts = state.products.filter(p =>
+                    p.name.toLowerCase().includes(state.searchQuery) ||
+                    p.store.toLowerCase().includes(state.searchQuery)
+                );
+            }
+
+            // 2. 単位価格でソート (単位価格が計算できるもの優先、安い順)
+            filteredProducts.sort((a, b) => {
+                const aPrice = a.unitPrice === Infinity ? 9999999 : a.unitPrice;
+                const bPrice = b.unitPrice === Infinity ? 9999999 : b.unitPrice;
+                if (aPrice !== bPrice) {
+                    return aPrice - bPrice;
+                }
+                // 単位価格が同じ場合は日付の新しい順
+                return new Date(b.date) - new Date(a.date);
+            });
+            
+            // 3. 検索結果の中で最安値(unitPrice)を見つける (Infinityを除く)
+            let cheapestPrice = Infinity;
+            if (filteredProducts.length > 0) {
+                 cheapestPrice = filteredProducts.reduce((min, p) => {
+                    return (p.unitPrice < min && p.unitPrice !== Infinity) ? p.unitPrice : min;
+                }, Infinity);
+            }
+
+            // 4. HTMLを生成
+            if (filteredProducts.length === 0) {
+                productList.innerHTML = '<p style="text-align: center; color: #777;">商品データがありません。</p>';
+                return;
+            }
+
+            filteredProducts.forEach(product => {
+                const card = document.createElement('div');
+                card.className = 'product-card';
+                
+                // 最安値クラスの付与
+                if (product.unitPrice === cheapestPrice && cheapestPrice !== Infinity) {
+                    card.classList.add('cheapest');
+                }
+
+                const formattedDate = formatDate(product.date, 'MM/DD');
+                
+                let unitPriceDisplay = '';
+                if (product.unitPrice !== Infinity) {
+                    unitPriceDisplay = `<span class="unit-price">${product.unitPrice.toFixed(2)}円/${product.unit}</span>`;
+                } else {
+                    unitPriceDisplay = `<span class="unit-price">---</span>`;
+                }
+
+                card.innerHTML = `
+                    <div class="product-card-main">
+                        <div class="product-name">${escapeHTML(product.name)}</div>
+                        <div class="product-price">
+                            ${product.price}円 (${product.quantity || '?'}${product.unit}) - ${unitPriceDisplay}
+                        </div>
+                        <div class="product-meta">
+                            <span class="store">${escapeHTML(product.store)}</span> | <span class="date">${formattedDate}</span>
+                        </div>
+                    </div>
+                    <div class="product-actions">
+                        <button class="action-button edit-button" data-id="${product.id}" title="編集">✏️</button>
+                        <button class="action-button delete-button" data-id="${product.id}" title="削除">🗑️</button>
+                    </div>
+                `;
+                
+                // イベントリスナーをボタンに追加
+                card.querySelector('.edit-button').addEventListener('click', () => {
+                    // 編集モーダルを開く (商品1つだけ)
+                    showEditModal(null, product.id);
+                });
+                card.querySelector('.delete-button').addEventListener('click', () => {
+                    if (confirm(`「${product.name}」を削除しますか？`)) {
+                        deleteProduct(product.id);
+                    }
+                });
+
+                productList.appendChild(card);
+            });
+        }
+        
+        /**
+         * 商品を削除
+         */
+        function deleteProduct(id) {
+            state.products = state.products.filter(p => p.id !== id);
+            saveToStorage();
+            renderProducts();
+        }
+
+        // ======================================================
+        // ストレージ (localStorage)
+        // ======================================================
+        
+        function saveToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state.products));
+        }
+
+        function loadFromStorage() {
+            const data = localStorage.getItem(STORAGE_KEY);
+            state.products = data ? JSON.parse(data) : [];
+        }
+
+        /**
+         * データをJSONファイルとしてエクスポート
+         */
+        function exportData() {
+            if (state.products.length === 0) {
+                alert('エクスポートするデータがありません。');
+                return;
+            }
+            const json = JSON.stringify(state.products, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `priceScout_backup_${formatDate(new Date(), 'YYYYMMDD')}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // ======================================================
+        // ユーティリティ関数
+        // ======================================================
+        
+        /**
+         * 単位価格を計算
+         */
+        function calculateUnitPrice(price, quantity) {
+            if (typeof price === 'number' && typeof quantity === 'number' && quantity > 0) {
+                return price / quantity;
+            }
+            return Infinity; // 計算不能の場合は無限大（ソートで最後尾）
+        }
+
+        /**
+         * 日付フォーマット (Day.js)
+         */
+        function formatDate(date, format = 'YYYY-MM-DD') {
+            if (!date) return '';
+            try {
+                return dayjs(date).format(format);
+            } catch (e) {
+                return date; // Day.jsが失敗したらそのまま返す
+            }
+        }
+        
+        /**
+         * HTMLエスケープ
+         */
+        function escapeHTML(str) {
+            if (typeof str !== 'string') return '';
+            return str.replace(/[&<>"']/g, function(match) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[match];
+            });
+        }
     </script>
+
 </body>
 </html>
