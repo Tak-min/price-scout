@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PriceScout</title>
+    <title>PriceScout (v5)</title>
     <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
     <style>
         /* 全体のスタイル */
@@ -124,8 +124,22 @@
         .product-meta {
             font-size: 14px;
             color: #777;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
         }
         .product-meta .store { font-weight: bold; }
+        
+        /* ラベル用のスタイル */
+        .product-meta .label {
+            background-color: #eee;
+            color: #555;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
 
         .product-actions {
             flex: 0 0 auto;
@@ -209,6 +223,9 @@
         }
         #itemInputs .item-row input[name="name"] {
             grid-column: 1 / -1; /* 商品名は1行フル */
+        }
+        #itemInputs .item-row select[name="label"] {
+            grid-column: 1 / -1; /* カテゴリも1行フル */
         }
         
         .form-actions {
@@ -297,7 +314,7 @@
             </label>
             <input type="file" id="imageUploader" accept="image/jpeg, image/png, image/webp">
             
-            <input type="text" id="searchInput" placeholder="商品名で検索...">
+            <input type="text" id="searchInput" placeholder="商品名やカテゴリ名で検索...">
         </div>
 
         <div class="data-management">
@@ -360,9 +377,21 @@
         const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
         const STORAGE_KEY = 'priceScoutProducts';
 
+        // ★新機能: 商品カテゴリの定義
+        const CATEGORIES = [
+            'Produce',      // 生鮮食品 (野菜・果物)
+            'Dairy & Eggs', // 乳製品・卵
+            'Meat & Fish',  // 肉・魚
+            'Beverages',    // 飲料
+            'Frozen',       // 冷凍食品
+            'Pantry',       // 保存食 (米、麺、缶詰、調味料)
+            'Household',    // 日用品 (洗剤、紙類)
+            'Other'         // その他
+        ];
+
         // アプリケーションの状態
         const state = {
-            products: [], // {id, name, price, quantity, unit, store, date, unitPrice}
+            products: [], // {id, name, price, quantity, unit, store, date, unitPrice, label}
             searchQuery: '',
             editingId: null, // 新規登録ならnull, 編集ならID
         };
@@ -458,14 +487,18 @@
          * Gemini APIを呼び出してレシートを解析
          */
         async function callGeminiAPI(base64Image, mimeType) {
-            // JSONスキーマを定義するプロンプト
+            // ★変更: カテゴリリストをプロンプトに含める
+            const categoryListString = CATEGORIES.join(', ');
+            
             const prompt = `
-                このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名と価格）を抽出してください。
+                このレシート画像を解析し、以下のJSONスキーマに従って店舗名、購入日、および購入したすべての商品リスト（商品名、価格、カテゴリ）を抽出してください。
                 日付は必ず YYYY-MM-DD 形式にしてください。
                 商品は "合計" や "小計"、"値引"、"税" を除いた、実際に購入した個別の品目のみを含めてください。
+                各商品のカテゴリは、以下のリストから最も適切なものを1つだけ選んでください: [${categoryListString}]。
+                もしどれにも当てはまらない場合は 'Other' を使用してください。
             `;
 
-            // Gemini API v1beta (gemini-2.5-flash-preview-09-2025) のリクエストボディ
+            // ★変更: Gemini API v1beta (gemini-2.5-flash-preview-09-2025) のリクエストボディ
             const requestBody = {
                 contents: [
                     {
@@ -495,9 +528,14 @@
                                     type: "OBJECT",
                                     properties: {
                                         name: { type: "STRING", description: "商品名" },
-                                        price: { type: "NUMBER", description: "価格（税込）" }
+                                        price: { type: "NUMBER", description: "価格（税込）" },
+                                        // ★新機能: label をスキーマに追加
+                                        label: { 
+                                            type: "STRING", 
+                                            description: `商品のカテゴリ。次のいずれか: [${categoryListString}]`
+                                        }
                                     },
-                                    required: ["name", "price"]
+                                    required: ["name", "price", "label"] // labelも必須に
                                 }
                             }
                         },
@@ -529,7 +567,7 @@
                     const jsonData = JSON.parse(data.candidates[0].content.parts[0].text);
                     return jsonData;
                 } catch (e) {
-                    console.error("レスポンスJSONのパース失敗:", e, data.candidates[0].content.parts[0].text);
+                    console.error("レスポンンスJSONのパース失敗:", e, data.candidates[0].content.parts[0].text);
                     throw new Error("AIからのレスポンス(JSON)の形式が不正です。");
                 }
             } else {
@@ -561,8 +599,8 @@
                 storeInput.value = product.store;
                 dateInput.value = product.date;
                 
-                // 1つの商品だけをフォームにセット
-                addItemInput(product.name, product.price, product.quantity, product.unit, product.id);
+                // ★変更: 1つの商品だけをフォームにセット (labelも渡す)
+                addItemInput(product.name, product.price, product.quantity, product.unit, product.id, product.label);
 
             } else if (data) {
                 // 新規登録の場合 (AIデータあり)
@@ -571,14 +609,16 @@
                 storeInput.value = data.store || '';
                 dateInput.value = data.date ? formatDate(data.date, 'YYYY-MM-DD') : formatDate(new Date(), 'YYYY-MM-DD');
                 
-                // AIが抽出したすべての商品をフォームにセット
+                // ★変更: AIが抽出したすべての商品をフォームにセット (labelも渡す)
                 if (data.items && data.items.length > 0) {
                     data.items.forEach(item => {
-                        addItemInput(item.name, item.price);
+                        // AIが定義外のカテゴリを返してきた場合 'Other' に補正
+                        const validLabel = CATEGORIES.includes(item.label) ? item.label : 'Other';
+                        addItemInput(item.name, item.price, '', 'g', null, validLabel);
                     });
                 } else {
                     // 商品が見つからなかった場合も空の欄を1つ追加
-                    addItemInput();
+                    addItemInput('', '', '', 'g', null, 'Other');
                 }
             }
             
@@ -586,9 +626,19 @@
         }
 
         /**
-         * 商品入力欄をモーダルに追加
+         * ★新機能: カテゴリの <option> タグを動的に生成する
          */
-        function addItemInput(name = '', price = '', quantity = '', unit = 'g', id = null) {
+        function createCategoryOptions(selectedLabel = 'Other') {
+            return CATEGORIES.map(category => 
+                `<option value="${category}" ${category === selectedLabel ? 'selected' : ''}>${category}</option>`
+            ).join('');
+        }
+
+        /**
+         * 商品入力欄をモーダルに追加
+         * ★変更: label を引数に追加
+         */
+        function addItemInput(name = '', price = '', quantity = '', unit = 'g', id = null, label = 'Other') {
             const newId = id || `new_${Date.now()}_${Math.random()}`;
             
             const group = document.createElement('div');
@@ -611,6 +661,11 @@
                         <option value="個" ${unit === '個' ? 'selected' : ''}>個 (こ)</option>
                     </select>
                 </div>
+                <div class="item-row" style="margin-top: 8px;">
+                    <select name="label">
+                        ${createCategoryOptions(label)}
+                    </select>
+                </div>
             `;
             itemInputs.appendChild(group);
         }
@@ -623,6 +678,7 @@
 
         /**
          * フォーム送信（保存）処理
+         * ★変更: label も保存
          */
         function handleFormSubmit(e) {
             e.preventDefault();
@@ -640,6 +696,7 @@
                 const price = Number(group.querySelector('[name="price"]').value);
                 const quantity = Number(group.querySelector('[name="quantity"]').value);
                 const unit = group.querySelector('[name="unit"]').value;
+                const label = group.querySelector('[name="label"]').value; // ★新機能: labelを取得
 
                 if (!name || price <= 0) return; // 商品名と価格は必須
 
@@ -653,7 +710,8 @@
                     unit,
                     store,
                     date,
-                    unitPrice
+                    unitPrice,
+                    label // ★新機能: labelを保存
                 };
 
                 // state.products を更新
@@ -690,13 +748,19 @@
         function renderProducts() {
             productList.innerHTML = ''; // リストをクリア
 
-            // 1. フィルタリング
+            // ★変更: 検索ロジックの強化
+            // 1. フィルタリング (商品名, 店舗名, ★カテゴリ名 で検索)
             let filteredProducts = state.products;
             if (state.searchQuery) {
-                filteredProducts = state.products.filter(p =>
-                    p.name.toLowerCase().includes(state.searchQuery) ||
-                    p.store.toLowerCase().includes(state.searchQuery)
-                );
+                filteredProducts = state.products.filter(p => {
+                    const name = p.name.toLowerCase();
+                    const store = p.store.toLowerCase();
+                    const label = (p.label || '').toLowerCase(); // ラベルがないデータも考慮
+                    
+                    return name.includes(state.searchQuery) ||
+                           store.includes(state.searchQuery) ||
+                           label.includes(state.searchQuery);
+                });
             }
 
             // 2. 単位価格でソート (単位価格が計算できるもの優先、安い順)
@@ -742,6 +806,9 @@
                     unitPriceDisplay = `<span class="unit-price">---</span>`;
                 }
 
+                // ★変更: ラベルを表示する
+                const labelDisplay = product.label ? `<span class="label">${escapeHTML(product.label)}</span>` : '';
+
                 card.innerHTML = `
                     <div class="product-card-main">
                         <div class="product-name">${escapeHTML(product.name)}</div>
@@ -749,6 +816,7 @@
                             ${product.price}円 (${product.quantity || '?'}${product.unit}) - ${unitPriceDisplay}
                         </div>
                         <div class="product-meta">
+                            ${labelDisplay}
                             <span class="store">${escapeHTML(product.store)}</span> | <span class="date">${formattedDate}</span>
                         </div>
                     </div>
