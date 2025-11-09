@@ -355,8 +355,9 @@
         // 
         // ======================================================
         
-        // Gemini API エンドポイント (gemini-1.5-flash-latest v1beta)
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        // Gemini API エンドポイント (gemini-2.5-flash-preview-09-2025 v1beta)
+        // (JSONモードのため v1beta を維持し、最新プレビューモデル名を使用)
+        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${API_KEY}`;
         const STORAGE_KEY = 'priceScoutProducts';
 
         // アプリケーションの状態
@@ -464,7 +465,7 @@
                 商品は "合計" や "小計"、"値引"、"税" を除いた、実際に購入した個別の品目のみを含めてください。
             `;
 
-            // Gemini API v1beta (gemini-1.5-flash-latest) のリクエストボディ
+            // Gemini API v1beta (gemini-2.5-flash-preview-09-2025) のリクエストボディ
             const requestBody = {
                 contents: [
                     {
